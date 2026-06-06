@@ -69,7 +69,12 @@ export class Brain implements IBrain {
             const state = await core.getCurrentState();
             const screenshotBase64 = state.screenshot.toString("base64");
 
-            const promptText = `Nhiệm vụ: ${prompt}. Trạng thái hiện tại: URL: ${state.url}, Title: ${state.title}.`;
+            const promptText = `
+                Nhiệm vụ: ${prompt}.
+                Trạng thái hiện tại: URL: ${state.url}, Title: ${state.title}.
+                Cấu trúc trang (DOM):
+                ${state.domSnapshot}
+            `;
 
             const result = await chat.sendMessage([
                 { text: promptText },
