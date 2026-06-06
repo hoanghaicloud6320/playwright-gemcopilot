@@ -23,3 +23,7 @@ blob-report/
 # OS
 .DS_Store
 Thumbs.db
+
+# Browser Profiles
+test_profile/
+
