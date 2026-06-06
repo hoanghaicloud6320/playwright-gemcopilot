@@ -87,11 +87,26 @@ export class Core implements ICore {
     }
 
     async getCurrentState(): Promise<BrowserState> {
+        const page = this.page; // instance của Playwright/Puppeteer
+
+        // Trích xuất DOM rút gọn
+        const domSnapshot = await page.evaluate(() => {
+            const elements = document.querySelectorAll('button, a, input, select, textarea');
+            return Array.from(elements).map((el: any) => ({
+                tag: el.tagName,
+                id: el.id,
+                class: el.className,
+                text: el.innerText?.substring(0, 30),
+                placeholder: el.placeholder,
+                type: el.type
+            })).map(el => JSON.stringify(el)).join('\n');
+        });
+
         return {
-            url: this.page.url(),
-            title: await this.page.title(),
-            screenshot: await this.page.screenshot(),
-            domSnapshot: await this.page.content(),
+            url: page.url(),
+            title: await page.title(),
+            screenshot: await page.screenshot(),
+            domSnapshot: domSnapshot, // Đây là cái Brain sẽ nhận được
             availableTools: this.getTools()
         };
     }

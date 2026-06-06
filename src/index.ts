@@ -23,7 +23,7 @@ async function main() {
         userDataDir: process.env.EDGE_PROFILE_PATH,
     });
 
-    await agent.run("hãy tra giá ngày hôm nay của vnindex, xăng dầu, vàng, silicon và btc", brain);
+    await agent.run("tôi muốn biết phiên bản mc mới nhất", brain);
 
     await core.close();
 }
