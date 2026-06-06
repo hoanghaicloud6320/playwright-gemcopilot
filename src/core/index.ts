@@ -10,12 +10,21 @@ export class Core implements ICore {
     private page: any;
 
     async launch(config: BrowserConfig): Promise<void> {
-        this.browser = await chromium.launch({ 
+        this.browser = await (chromium as any).launch({
             headless: config.headless,
             executablePath: config.executablePath,
-            channel: config.channel
+            channel: config.channel,
+            args: [
+                '--disable-blink-features=AutomationControlled', // Quan trọng để tránh dấu vết automation
+                '--no-sandbox'
+            ]
         });
         this.page = await this.browser.newPage();
+
+        // Đảm bảo User-Agent không bị lộ là headless
+        await this.page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        });
     }
 
     async close(): Promise<void> {
