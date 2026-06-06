@@ -56,7 +56,7 @@ export class Brain implements IBrain {
 
         const model = this.genAI.getGenerativeModel({
             model: this.modelName,
-            tools: this.getTools()
+            tools: [{ functionDeclarations: core.getTools() }]
         });
 
         // Chat session để lưu context và hỗ trợ function calling tốt hơn
@@ -84,17 +84,19 @@ export class Brain implements IBrain {
                 console.log("LLM Requested Tool:", call.name, call.args);
 
                 // Thực thi action qua core
-                await core.performAction({
+                const actionResult = await core.performAction({
                     type: call.name as any,
                     ...call.args as any
                 });
+                console.log("Tool execution result:", actionResult);
+
                     await new Promise(r => setTimeout(r, 2000));
 
                 // Gửi FunctionResponse về cho LLM
                 await chat.sendMessage([{
                     functionResponse: {
                         name: call.name,
-                        response: { result: { success: true } }
+                        response: { result: actionResult }
                     }
                 }]);
             } else {

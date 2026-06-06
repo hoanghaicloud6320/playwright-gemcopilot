@@ -48,26 +48,41 @@ export class Core implements ICore {
         await this.browser.close();
     }
 
-    async performAction(action: BrowserAction): Promise<void> {
-        // Map các tool call từ LLM sang các hàm của Playwright
+    async performAction(action: BrowserAction): Promise<string> {
+        try {
         const actionType = action.type || (action as any).name;
         const args = action.args || action;
         switch (actionType) {
             case 'navigate':
-                if (args.url) await this.page.goto(args.url);
-                break;
-            case 'click':
-                if (args.selector) await this.page.click(args.selector);
-                break;
-            case 'type':
-                if (args.selector && args.text) {
-                    await this.page.fill(args.selector, args.text);
+                    if (args.url) {
+                        await this.page.goto(args.url);
+                        return `Đã điều hướng thành công đến ${args.url}`;
+                    }
+                    return "Thiếu URL để điều hướng";
+                case 'click':
+                    if (args.selector) {
+                        await this.page.waitForSelector(args.selector, { timeout: 5000 });
+                        await this.page.click(args.selector);
+                        return `Đã click thành công vào ${args.selector}`;
                 }
-                break;
-            case 'scroll':
-                await this.page.evaluate(() => window.scrollBy(0, window.innerHeight));
-                break;
-            // Add other actions...
+                    return "Thiếu selector để click";
+                case 'type':
+                    if (args.selector && args.text) {
+                        await this.page.waitForSelector(args.selector, { timeout: 5000 });
+                        await this.page.fill(args.selector, args.text);
+                        return `Đã nhập văn bản vào ${args.selector}`;
+        }
+                    return "Thiếu selector hoặc text để nhập";
+                case 'scroll':
+                    await this.page.evaluate(() => window.scrollBy(0, window.innerHeight));
+                    return "Đã cuộn trang";
+                case 'done':
+                    return "Tác vụ đã hoàn thành";
+                default:
+                    return `Hành động không xác định: ${actionType}`;
+    }
+        } catch (error: any) {
+            return `Lỗi thực thi hành động ${action.type}: ${error.message}`;
         }
     }
 
