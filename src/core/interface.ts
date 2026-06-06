@@ -10,7 +10,7 @@ export interface BrowserConfig {
 }
 
 export interface BrowserAction {
-    type: 'click' | 'type' | 'navigate' | 'scroll';
+    type: 'click' | 'type' | 'navigate' | 'scroll' | 'done';
     selector?: string;
     text?: string;
     url?: string;

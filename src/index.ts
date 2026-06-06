@@ -22,7 +22,7 @@ async function main() {
         channel: "msedge",
     });
 
-    await agent.run("Tìm kiếm từ khóa 'Cloudflare' trên google", brain);
+    await agent.run("kiểm tra phiên bản java mới nhất hiện tại", brain);
 
     await core.close();
 }

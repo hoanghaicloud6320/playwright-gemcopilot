@@ -19,10 +19,14 @@ export class Core implements ICore {
                 '--no-sandbox'
             ]
         });
-        this.page = await this.browser.newPage();
+        const context = await this.browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        });
+
+        this.page = await context.newPage();
 
         // Đảm bảo User-Agent không bị lộ là headless
-        await this.page.evaluateOnNewDocument(() => {
+        await this.page.addInitScript(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
         });
     }
@@ -32,15 +36,23 @@ export class Core implements ICore {
     }
 
     async performAction(action: BrowserAction): Promise<void> {
-        switch (action.type) {
+        // Map các tool call từ LLM sang các hàm của Playwright
+        const actionType = action.type || (action as any).name;
+        const args = action.args || action;
+        switch (actionType) {
             case 'navigate':
-                if (action.url) await this.page.goto(action.url);
+                if (args.url) await this.page.goto(args.url);
                 break;
             case 'click':
-                if (action.selector) await this.page.click(action.selector);
+                if (args.selector) await this.page.click(args.selector);
                 break;
             case 'type':
-                if (action.selector && action.text) await this.page.fill(action.selector, action.text);
+                if (args.selector && args.text) {
+                    await this.page.fill(args.selector, args.text);
+                }
+                break;
+            case 'scroll':
+                await this.page.evaluate(() => window.scrollBy(0, window.innerHeight));
                 break;
             // Add other actions...
         }
