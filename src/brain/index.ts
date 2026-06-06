@@ -66,7 +66,7 @@ export class Brain implements IBrain {
         let turn = 0;
         while (running && turn < 10) {
             turn++;
-        const state = await core.getCurrentState();
+            const state = await core.getCurrentState();
             const screenshotBase64 = state.screenshot.toString("base64");
 
             const promptText = `Nhiệm vụ: ${prompt}. Trạng thái hiện tại: URL: ${state.url}, Title: ${state.title}.`;

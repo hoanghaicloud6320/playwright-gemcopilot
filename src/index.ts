@@ -20,9 +20,10 @@ async function main() {
     await core.launch({
         headless: false,
         channel: "msedge",
+        userDataDir: process.env.EDGE_PROFILE_PATH,
     });
 
-    await agent.run("kiểm tra phiên bản java mới nhất hiện tại", brain);
+    await agent.run("hãy tra giá ngày hôm nay của vnindex, xăng dầu, vàng, silicon và btc", brain);
 
     await core.close();
 }
