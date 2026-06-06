@@ -1,5 +1,0 @@
-2026/06/07-02:14:24.015 4abc Creating DB D:\DoMinhhAnhh\codes\playwright-gemcopilot\test_profile\Default\EdgeCoupons/coupons_data.db since it was missing.
-2026/06/07-02:14:24.034 4abc Reusing MANIFEST D:\DoMinhhAnhh\codes\playwright-gemcopilot\test_profile\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
-2026/06/07-02:14:24.248 a34 Level-0 table #5: started
-2026/06/07-02:14:24.258 a34 Level-0 table #5: 682676 bytes OK
-2026/06/07-02:14:24.262 a34 Delete type=0 #3

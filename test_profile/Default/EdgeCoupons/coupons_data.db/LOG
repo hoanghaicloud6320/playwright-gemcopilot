@@ -1,6 +1,0 @@
-2026/06/07-02:22:41.651 2ef0 Reusing MANIFEST D:\DoMinhhAnhh\codes\playwright-gemcopilot\test_profile\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
-2026/06/07-02:22:41.655 2ef0 Recovering log #4
-2026/06/07-02:22:41.657 2ef0 Reusing old log D:\DoMinhhAnhh\codes\playwright-gemcopilot\test_profile\Default\EdgeCoupons/coupons_data.db/000004.log 
-2026/06/07-02:22:41.748 507c Level-0 table #8: started
-2026/06/07-02:22:41.759 507c Level-0 table #8: 682836 bytes OK
-2026/06/07-02:22:41.763 507c Delete type=0 #4
