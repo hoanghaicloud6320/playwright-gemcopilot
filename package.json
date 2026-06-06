@@ -1,0 +1,23 @@
+{
+  "name": "ai-agent-browser",
+  "version": "1.0.0",
+  "description": "Minimalist AI Browser Agent",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.17.2",
+    "dotenv": "^16.6.1",
+    "playwright-core": "^1.60.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.22.4",
+    "typescript": "^5.6.2"
+  }
+}
