@@ -13,13 +13,13 @@ export class Core implements ICore {
         if (config.userDataDir) {
             // Dùng launchPersistentContext để load profile có sẵn
             const context = await (chromium as any).launchPersistentContext(config.userDataDir, {
-            headless: config.headless,
-            channel: config.channel,
-            args: [
+                headless: config.headless,
+                channel: config.channel,
+                args: [
                     '--disable-blink-features=AutomationControlled',
                 ],
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        });
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            });
             this.browser = context.browser();
             this.page = context.pages()[0] || await context.newPage();
         } else {
@@ -30,13 +30,13 @@ export class Core implements ICore {
                 args: [
                     '--disable-blink-features=AutomationControlled', // Quan trọng để tránh dấu vết automation
                 ]
-        });
+            });
             const context = await this.browser.newContext({
                 userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             });
 
-        this.page = await context.newPage();
-    }
+            this.page = await context.newPage();
+        }
 
         // Đảm bảo User-Agent không bị lộ là headless
         await this.page.addInitScript(() => {
@@ -50,10 +50,10 @@ export class Core implements ICore {
 
     async performAction(action: BrowserAction): Promise<string> {
         try {
-        const actionType = action.type || (action as any).name;
-        const args = action.args || action;
-        switch (actionType) {
-            case 'navigate':
+            const actionType = action.type || (action as any).name;
+            const args = action.args || action;
+            switch (actionType) {
+                case 'navigate':
                     if (args.url) {
                         await this.page.goto(args.url);
                         return `Đã điều hướng thành công đến ${args.url}`;
@@ -64,14 +64,14 @@ export class Core implements ICore {
                         await this.page.waitForSelector(args.selector, { timeout: 5000 });
                         await this.page.click(args.selector);
                         return `Đã click thành công vào ${args.selector}`;
-                }
+                    }
                     return "Thiếu selector để click";
                 case 'type':
                     if (args.selector && args.text) {
                         await this.page.waitForSelector(args.selector, { timeout: 5000 });
                         await this.page.fill(args.selector, args.text);
                         return `Đã nhập văn bản vào ${args.selector}`;
-        }
+                    }
                     return "Thiếu selector hoặc text để nhập";
                 case 'scroll':
                     await this.page.evaluate(() => window.scrollBy(0, window.innerHeight));
@@ -80,7 +80,7 @@ export class Core implements ICore {
                     return "Tác vụ đã hoàn thành";
                 default:
                     return `Hành động không xác định: ${actionType}`;
-    }
+            }
         } catch (error: any) {
             return `Lỗi thực thi hành động ${action.type}: ${error.message}`;
         }
@@ -91,15 +91,49 @@ export class Core implements ICore {
 
         // Trích xuất DOM rút gọn
         const domSnapshot = await page.evaluate(() => {
-            const elements = document.querySelectorAll('button, a, input, select, textarea');
-            return Array.from(elements).map((el: any) => ({
-                tag: el.tagName,
-                id: el.id,
-                class: el.className,
-                text: el.innerText?.substring(0, 30),
-                placeholder: el.placeholder,
-                type: el.type
-            })).map(el => JSON.stringify(el)).join('\n');
+            const selector = 'button, a, input, select, textarea, [role="button"], [contenteditable="true"]';
+
+            const elements = Array.from(document.querySelectorAll(selector))
+                .filter((el: any) => {
+                    const rect = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+
+                    return (
+                        rect.width > 0 &&
+                        rect.height > 0 &&
+                        style.visibility !== 'hidden' &&
+                        style.display !== 'none'
+                    );
+                });
+
+            return elements.map((el: any, index) => {
+                const rect = el.getBoundingClientRect();
+
+                return {
+                    index,
+                    tag: el.tagName.toLowerCase(),
+                    role: el.getAttribute('role'),
+                    id: el.id || null,
+                    class: typeof el.className === 'string' ? el.className : null,
+                    text: el.innerText?.trim().slice(0, 100) || null,
+                    ariaLabel: el.getAttribute('aria-label'),
+                    title: el.getAttribute('title'),
+                    placeholder: el.placeholder || null,
+                    type: el.type || null,
+                    name: el.name || null,
+                    value: el.value || null,
+                    checked: el.checked ?? null,
+                    disabled: el.disabled || false,
+                    href: el.href || null,
+                    label: el.labels?.[0]?.innerText?.trim() || null,
+                    bbox: {
+                        x: Math.round(rect.x),
+                        y: Math.round(rect.y),
+                        w: Math.round(rect.width),
+                        h: Math.round(rect.height)
+                    }
+                };
+            }).map(el => JSON.stringify(el)).join('\n');
         });
 
         return {
