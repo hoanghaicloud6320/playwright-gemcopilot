@@ -50,6 +50,11 @@ export class Brain implements IBrain {
             const calls = result.response.functionCalls();
 
             if (calls && calls.length > 0) {
+                const text = result.response.text();
+                if (text) {
+                    console.log("AI message:", text);
+                }
+
                 const call = calls[0];
                 console.log("LLM Requested Tool:", call.name, call.args);
 
@@ -66,7 +71,7 @@ export class Brain implements IBrain {
                 await chat.sendMessage([{
                     functionResponse: {
                         name: call.name,
-                        response: { result: actionResult }
+                        response: { result: JSON.stringify(actionResult) }
                     }
                 }]);
             } else {

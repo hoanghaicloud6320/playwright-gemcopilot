@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-extra';
 import stealth from 'puppeteer-extra-plugin-stealth';
-import { ICore, BrowserConfig, BrowserAction, BrowserState, ToolDefinition } from './interface';
+import { ICore, BrowserConfig, BrowserAction, BrowserState, ToolDefinition, ActionResult } from './interface';
 
 // Tạm thời áp dụng plugin stealth
 (chromium as any).use(stealth());
@@ -48,7 +48,7 @@ export class Core implements ICore {
         await this.browser.close();
     }
 
-    async performAction(action: BrowserAction): Promise<string> {
+    async performAction(action: BrowserAction): Promise<ActionResult> {
         try {
             const actionType = action.type || (action as any).name;
             const args = action.args || action;
@@ -56,33 +56,51 @@ export class Core implements ICore {
                 case 'navigate':
                     if (args.url) {
                         await this.page.goto(args.url);
-                        return `Đã điều hướng thành công đến ${args.url}`;
+                        return { success: true, message: `Đã điều hướng thành công đến ${args.url}` };
                     }
-                    return "Thiếu URL để điều hướng";
+                    return { success: false, message: "Thiếu URL để điều hướng", errorType: 'navigation_failed' };
                 case 'click':
                     if (args.selector) {
+                        try {
                         await this.page.waitForSelector(args.selector, { timeout: 5000 });
                         await this.page.click(args.selector);
-                        return `Đã click thành công vào ${args.selector}`;
+                            return { success: true, message: `Đã click thành công vào ${args.selector}` };
+                        } catch (e: any) {
+                            return {
+                                success: false,
+                                message: `Không thể click vào ${args.selector}: ${e.message}`,
+                                errorType: 'timeout',
+                                suggestion: 'Có thể selector không tồn tại hoặc trang chưa tải xong. Hãy kiểm tra lại DOM snapshot hoặc đợi thêm.'
+                };
+                        }
                     }
-                    return "Thiếu selector để click";
+                    return { success: false, message: "Thiếu selector để click", errorType: 'selector_not_found' };
                 case 'type':
                     if (args.selector && args.text) {
-                        await this.page.waitForSelector(args.selector, { timeout: 5000 });
-                        await this.page.fill(args.selector, args.text);
-                        return `Đã nhập văn bản vào ${args.selector}`;
+                        try {
+                            await this.page.waitForSelector(args.selector, { timeout: 5000 });
+                            await this.page.fill(args.selector, args.text);
+                            return { success: true, message: `Đã nhập văn bản vào ${args.selector}` };
+                        } catch (e: any) {
+        return {
+                                success: false,
+                                message: `Không thể nhập văn bản vào ${args.selector}: ${e.message}`,
+                                errorType: 'timeout',
+                                suggestion: 'Selector có thể đã thay đổi hoặc phần tử không khả dụng để nhập.'
+        };
+    }
                     }
-                    return "Thiếu selector hoặc text để nhập";
+                    return { success: false, message: "Thiếu selector hoặc text để nhập", errorType: 'selector_not_found' };
                 case 'scroll':
                     await this.page.evaluate(() => window.scrollBy(0, window.innerHeight));
-                    return "Đã cuộn trang";
+                    return { success: true, message: "Đã cuộn trang" };
                 case 'done':
-                    return "Tác vụ đã hoàn thành";
+                    return { success: true, message: "Tác vụ đã hoàn thành" };
                 default:
-                    return `Hành động không xác định: ${actionType}`;
+                    return { success: false, message: `Hành động không xác định: ${actionType}`, errorType: 'unknown' };
             }
         } catch (error: any) {
-            return `Lỗi thực thi hành động ${action.type}: ${error.message}`;
+            return { success: false, message: `Lỗi hệ thống khi thực thi hành động ${action.type}: ${error.message}`, errorType: 'unknown' };
         }
     }
 
@@ -108,7 +126,6 @@ export class Core implements ICore {
 
             return elements.map((el: any, index) => {
                 const rect = el.getBoundingClientRect();
-
                 return {
                     index,
                     tag: el.tagName.toLowerCase(),
@@ -135,7 +152,6 @@ export class Core implements ICore {
                 };
             }).map(el => JSON.stringify(el)).join('\n');
         });
-
         return {
             url: page.url(),
             title: await page.title(),

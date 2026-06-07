@@ -19,6 +19,13 @@ export interface BrowserAction {
     args?: any;        // Thêm vào để hỗ trợ tool call mapping
 }
 
+export interface ActionResult {
+    success: boolean;
+    message: string;
+    errorType?: 'timeout' | 'selector_not_found' | 'navigation_failed' | 'unknown';
+    suggestion?: string;
+}
+
 /**
  * Định nghĩa các Tool có sẵn cho Brain
  */
@@ -43,7 +50,7 @@ export interface BrowserState {
 export interface ICore {
     launch(config: BrowserConfig): Promise<void>;
     close(): Promise<void>;
-    performAction(action: BrowserAction): Promise<void>;
+    performAction(action: BrowserAction): Promise<ActionResult>;
     getCurrentState(): Promise<BrowserState>;
     getTools(): ToolDefinition[]; // Lấy danh sách tool
 }
