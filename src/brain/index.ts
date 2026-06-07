@@ -27,7 +27,7 @@ export class Brain implements IBrain {
 
         let running = true;
         let turn = 0;
-        while (running && turn <= 10) {
+        while (running && turn <= 20) {
             turn++;
             const state = await core.getCurrentState();
             const screenshotBase64 = state.screenshot.toString("base64");
