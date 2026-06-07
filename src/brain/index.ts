@@ -14,43 +14,6 @@ export class Brain implements IBrain {
         this.modelName = modelName;
     }
 
-    private getTools(): Tool[] {
-        return [{
-            functionDeclarations: [
-                {
-                    name: "navigate",
-                    description: "Điều hướng đến một URL cụ thể",
-                    parameters: {
-                        type: "OBJECT",
-                        properties: { url: { type: "STRING" } },
-                        required: ["url"]
-                    }
-                },
-                {
-                    name: "click",
-                    description: "Click vào một phần tử trên trang",
-                    parameters: {
-                        type: "OBJECT",
-                        properties: { selector: { type: "STRING" } },
-                        required: ["selector"]
-                    }
-                },
-                {
-                    name: "type",
-                    description: "Nhập văn bản vào một phần tử",
-                    parameters: {
-                        type: "OBJECT",
-                        properties: {
-                            selector: { type: "STRING" },
-                            text: { type: "STRING" }
-                        },
-                        required: ["selector", "text"]
-                    }
-                }
-            ]
-        }];
-    }
-
     async process(prompt: string, core: ICore): Promise<void> {
         console.log("Brain processing prompt:", prompt);
 
@@ -64,16 +27,18 @@ export class Brain implements IBrain {
 
         let running = true;
         let turn = 0;
-        while (running && turn < 10) {
+        while (running && turn <= 20) {
             turn++;
             const state = await core.getCurrentState();
             const screenshotBase64 = state.screenshot.toString("base64");
 
             const promptText = `
-                Nhiệm vụ: ${prompt}.
-                Trạng thái hiện tại: URL: ${state.url}, Title: ${state.title}.
-                Cấu trúc trang (DOM):
+                Nhiệm vụ: \`${prompt}\`.
+                Trạng thái hiện tại: URL: \`${state.url}\`, Title: \`${state.title}\`.
+                Cấu trúc trang rút gọn (Simplified DOM):
+                \`\`\`html
                 ${state.domSnapshot}
+                \`\`\`
             `;
 
             const result = await chat.sendMessage([
@@ -95,7 +60,7 @@ export class Brain implements IBrain {
                 });
                 console.log("Tool execution result:", actionResult);
 
-                    await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 2000));
 
                 // Gửi FunctionResponse về cho LLM
                 await chat.sendMessage([{

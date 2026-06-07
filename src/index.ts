@@ -2,6 +2,7 @@ import { AgentInterface } from "./interface/index.js";
 import { Brain } from "./brain/index.js";
 import { Core } from "./core/index.js";
 import * as dotenv from "dotenv";
+import * as readline from "readline";
 
 dotenv.config();
 
@@ -23,7 +24,18 @@ async function main() {
         userDataDir: process.env.EDGE_PROFILE_PATH,
     });
 
-    await agent.run("tôi muốn biết phiên bản mc mới nhất", brain);
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
+
+    const userInput = await new Promise<string>((resolve) => {
+        rl.question("Nhập yêu cầu của bạn: ", (answer) => {
+            resolve(answer);
+            rl.close();
+        });
+    });
+    await agent.run(userInput, brain);
 
     await core.close();
 }
