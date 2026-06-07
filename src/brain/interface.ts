@@ -10,8 +10,5 @@ export interface IBrain {
 
     // Tuỳ chỉnh model
     setModel(modelName: string): void;
-
-    // Lấy danh sách công cụ từ Core
-    getAvailableTools(): ToolDefinition[];
 }
 

@@ -1,6 +1,7 @@
-import { GoogleGenerativeAI, FunctionDeclaration, Tool } from "@google/generative-ai";
+import { GoogleGenerativeAI, FunctionDeclaration, Tool, SchemaType } from "@google/generative-ai";
 import { IBrain } from "./interface";
 import { ICore } from "../core/interface";
+import { ToolDefinition } from "../core/interface";
 
 export class Brain implements IBrain {
     private genAI: GoogleGenerativeAI;
@@ -14,12 +15,28 @@ export class Brain implements IBrain {
         this.modelName = modelName;
     }
 
+    getAvailableTools(): ToolDefinition[] {
+        // Nếu cần trả về danh sách tool sẵn có, thường là lấy từ core
+        // Vì class này cần ICore trong hàm process, bạn có thể cân nhắc lưu core vào property nếu cần thiết.
+        // Hiện tại tạm thời trả về mảng rỗng hoặc logic phù hợp
+        return [];
+    }
+
     async process(prompt: string, core: ICore): Promise<void> {
         console.log("Brain processing prompt:", prompt);
 
         const model = this.genAI.getGenerativeModel({
             model: this.modelName,
-            tools: [{ functionDeclarations: core.getTools() }]
+            tools: [{
+                functionDeclarations: core.getTools().map(tool => ({
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: {
+                        ...tool.parameters,
+                        type: SchemaType.OBJECT
+                    }
+                }))
+            }]
         });
 
         // Chat session để lưu context và hỗ trợ function calling tốt hơn
