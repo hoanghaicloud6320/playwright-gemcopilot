@@ -1,0 +1,52 @@
+{
+  "tag": "page",
+  "title": "edge.html",
+  "href": "about:blank",
+  "children": [
+    {
+      "tag": "section",
+      "selector": "section[aria-label=\"Actions\"]",
+      "visible": true,
+      "aria-label": "Actions",
+      "children": [
+        {
+          "tag": "button",
+          "selector": "section > button:nth-of-type(1)",
+          "visible": true,
+          "type": "submit",
+          "text": "Save draft"
+        },
+        {
+          "tag": "button",
+          "selector": "section > button:nth-of-type(2)",
+          "visible": true,
+          "type": "submit",
+          "text": "Publish"
+        },
+        {
+          "tag": "input",
+          "selector": "input[name=\"agree\"]",
+          "visible": true,
+          "name": "agree",
+          "type": "checkbox",
+          "checked": true
+        },
+        {
+          "tag": "input",
+          "selector": "input[name=\"readonlyField\"]",
+          "visible": true,
+          "name": "readonlyField",
+          "value": "abc",
+          "readonly": true
+        },
+        {
+          "tag": "button",
+          "selector": "button[data-testid=\"inside-wrapper\"]",
+          "visible": true,
+          "data-testid": "inside-wrapper",
+          "text": "Inside wrapper"
+        }
+      ]
+    }
+  ]
+}

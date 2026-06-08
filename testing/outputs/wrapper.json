@@ -1,0 +1,14 @@
+{
+  "tag": "page",
+  "title": "wrapper.html",
+  "href": "about:blank",
+  "children": [
+    {
+      "tag": "button",
+      "selector": "button[data-testid=\"search-btn\"]",
+      "visible": true,
+      "data-testid": "search-btn",
+      "text": "Search"
+    }
+  ]
+}
