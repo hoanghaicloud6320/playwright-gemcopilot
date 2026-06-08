@@ -32,8 +32,9 @@ export class Brain implements IBrain {
                     name: tool.name,
                     description: tool.description,
                     parameters: {
-                        ...tool.parameters,
-                        type: SchemaType.OBJECT
+                        type: SchemaType.OBJECT,
+                        properties: tool.parameters.properties,
+                        required: tool.parameters.required
                     }
                 }))
             }]
@@ -77,9 +78,9 @@ export class Brain implements IBrain {
 
                 // Thực thi action qua core
                 const actionResult = await core.performAction({
-                    type: call.name as any,
-                    ...call.args as any
-                });
+                    type: call.name as 'click' | 'type' | 'navigate' | 'scroll' | 'done',
+                    ...call.args
+                } as any);
                 console.log("Tool execution result:", actionResult);
 
                 await new Promise(r => setTimeout(r, 2000));
@@ -94,8 +95,8 @@ export class Brain implements IBrain {
             } else {
                 console.log("Agent Final Response:", result.response.text());
                 running = false;
+            }
         }
     }
-}
 }
 

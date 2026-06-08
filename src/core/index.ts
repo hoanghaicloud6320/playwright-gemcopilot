@@ -50,8 +50,8 @@ export class Core implements ICore {
 
     async performAction(action: BrowserAction): Promise<ActionResult> {
         try {
-            const actionType = action.type || (action as any).name;
-            const args = action.args || action;
+            const actionType = action.type;
+            const args = action;
             switch (actionType) {
                 case 'navigate':
                     if (args.url) {
@@ -65,10 +65,11 @@ export class Core implements ICore {
                         await this.page.waitForSelector(args.selector, { timeout: 5000 });
                         await this.page.click(args.selector);
                             return { success: true, message: `Đã click thành công vào ${args.selector}` };
-                        } catch (e: any) {
+                        } catch (e: unknown) {
+                            const error = e instanceof Error ? e.message : String(e);
                             return {
                                 success: false,
-                                message: `Không thể click vào ${args.selector}: ${e.message}`,
+                                message: `Không thể click vào ${args.selector}: ${error}`,
                                 errorType: 'timeout',
                                 suggestion: 'Có thể selector không tồn tại hoặc trang chưa tải xong. Hãy kiểm tra lại DOM snapshot hoặc đợi thêm.'
                 };
@@ -81,10 +82,11 @@ export class Core implements ICore {
                             await this.page.waitForSelector(args.selector, { timeout: 5000 });
                             await this.page.fill(args.selector, args.text);
                             return { success: true, message: `Đã nhập văn bản vào ${args.selector}` };
-                        } catch (e: any) {
+                        } catch (e: unknown) {
+                            const error = e instanceof Error ? e.message : String(e);
         return {
                                 success: false,
-                                message: `Không thể nhập văn bản vào ${args.selector}: ${e.message}`,
+                                message: `Không thể nhập văn bản vào ${args.selector}: ${error}`,
                                 errorType: 'timeout',
                                 suggestion: 'Selector có thể đã thay đổi hoặc phần tử không khả dụng để nhập.'
         };
@@ -99,8 +101,9 @@ export class Core implements ICore {
                 default:
                     return { success: false, message: `Hành động không xác định: ${actionType}`, errorType: 'unknown' };
             }
-        } catch (error: any) {
-            return { success: false, message: `Lỗi hệ thống khi thực thi hành động ${action.type}: ${error.message}`, errorType: 'unknown' };
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { success: false, message: `Lỗi hệ thống khi thực thi hành động ${action.type}: ${message}`, errorType: 'unknown' };
         }
     }
 

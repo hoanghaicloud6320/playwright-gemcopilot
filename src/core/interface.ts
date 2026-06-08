@@ -15,8 +15,6 @@ export interface BrowserAction {
     selector?: string;
     text?: string;
     url?: string;
-    name?: string;     // Thêm vào để hỗ trợ tool call mapping
-    args?: any;        // Thêm vào để hỗ trợ tool call mapping
 }
 
 export interface ActionResult {
