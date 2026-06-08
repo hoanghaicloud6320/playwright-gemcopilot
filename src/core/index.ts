@@ -135,7 +135,6 @@ export class Core implements ICore {
             title: await page.title(),
             screenshot: await page.screenshot(),
             domSnapshot: domSnapshot, // Đây là cái Brain sẽ nhận được
-            availableTools: this.getTools()
         };
     }
 

@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI, FunctionDeclaration, Tool, SchemaType } from "@google/generative-ai";
 import { IBrain } from "./interface";
-import { ICore } from "../core/interface";
-import { ToolDefinition } from "../core/interface";
+import { ICore,BrowserAction } from "../core/interface";
 
 export class Brain implements IBrain {
     private genAI: GoogleGenerativeAI;
@@ -13,13 +12,6 @@ export class Brain implements IBrain {
 
     setModel(modelName: string): void {
         this.modelName = modelName;
-    }
-
-    getAvailableTools(): ToolDefinition[] {
-        // Nếu cần trả về danh sách tool sẵn có, thường là lấy từ core
-        // Vì class này cần ICore trong hàm process, bạn có thể cân nhắc lưu core vào property nếu cần thiết.
-        // Hiện tại tạm thời trả về mảng rỗng hoặc logic phù hợp
-        return [];
     }
 
     async process(prompt: string, core: ICore): Promise<void> {
@@ -54,7 +46,7 @@ export class Brain implements IBrain {
                 Nhiệm vụ: \`${prompt}\`.
                 Trạng thái hiện tại: URL: \`${state.url}\`, Title: \`${state.title}\`.
                 Cấu trúc trang rút gọn (Simplified DOM):
-                \`\`\`html
+                \`\`\`json
                 ${state.domSnapshot}
                 \`\`\`
             `;
@@ -77,10 +69,12 @@ export class Brain implements IBrain {
                 console.log("LLM Requested Tool:", call.name, call.args);
 
                 // Thực thi action qua core
-                const actionResult = await core.performAction({
-                    type: call.name as 'click' | 'type' | 'navigate' | 'scroll' | 'done',
+                const action: BrowserAction = {
+                    type: call.name as BrowserAction['type'],
                     ...call.args
-                } as any);
+                } as BrowserAction;
+
+                const actionResult = await core.performAction(action);
                 console.log("Tool execution result:", actionResult);
 
                 await new Promise(r => setTimeout(r, 2000));

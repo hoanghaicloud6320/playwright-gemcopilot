@@ -44,7 +44,6 @@ export interface BrowserState {
     title: string;
     screenshot: Buffer; // Hoặc base64 string
     domSnapshot: string;
-    availableTools: ToolDefinition[]; // Thêm vào để Brain biết dùng tool gì
 }
 
 export interface ICore {
