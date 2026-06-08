@@ -7,6 +7,7 @@ import { typeTool, performType } from './tools/type';
 import { scrollTool, performScroll } from './tools/scroll';
 import { doneTool, performDone } from './tools/done';
 import { keypressTool, performKeypress } from './tools/keypress';
+import { askForHumanConfirmationTool, performAskForHumanConfirmation } from './tools/askForHumanConfirmation';
 
 // Tạm thời áp dụng plugin stealth
 (chromium as any).use(stealth());
@@ -68,6 +69,8 @@ export class Core implements ICore {
                     return await performScroll(this.page);
                 case 'keypress':
                     return await performKeypress(this.page, action);
+                case 'askForHumanConfirmation':
+                    return await performAskForHumanConfirmation(action);
                 case 'done':
                     return await performDone();
                 default:
@@ -143,6 +146,7 @@ export class Core implements ICore {
             typeTool,
             scrollTool,
             keypressTool,
+            askForHumanConfirmationTool,
             doneTool
         ];
     }

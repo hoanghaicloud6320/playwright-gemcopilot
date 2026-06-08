@@ -11,11 +11,12 @@ export interface BrowserConfig {
 }
 
 export interface BrowserAction {
-    type: 'click' | 'type' | 'navigate' | 'scroll' | 'done' | 'keypress';
+    type: 'click' | 'type' | 'navigate' | 'scroll' | 'done' | 'keypress' | 'askForHumanConfirmation';
     selector?: string;
     text?: string;
     url?: string;
     key?: string;
+    question?: string;
 }
 
 export interface ActionResult {
