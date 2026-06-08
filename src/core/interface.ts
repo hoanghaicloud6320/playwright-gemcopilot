@@ -11,16 +11,17 @@ export interface BrowserConfig {
 }
 
 export interface BrowserAction {
-    type: 'click' | 'type' | 'navigate' | 'scroll' | 'done';
+    type: 'click' | 'type' | 'navigate' | 'scroll' | 'done' | 'keypress';
     selector?: string;
     text?: string;
     url?: string;
+    key?: string;
 }
 
 export interface ActionResult {
     success: boolean;
     message: string;
-    errorType?: 'timeout' | 'selector_not_found' | 'navigation_failed' | 'unknown';
+    errorType?: 'timeout' | 'selector_not_found' | 'navigation_failed' | 'unknown' | 'keyboard_error' | 'missing_parameter';
     suggestion?: string;
 }
 

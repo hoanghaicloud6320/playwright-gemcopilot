@@ -1,6 +1,4 @@
- - chia nhỏ các file, dọn rác
  - DOM summarizer cần cải thiện (dự tính sử dụng json UI tree). từ đó các tool cũng sẽ phải thích ứng theo, và ko sử dụng selector nữa
  - các tool click, type chỉ chấp nhận nếu selector chỉ match đúng 1 phần tử
- - thêm tính năng keypress
  - thêm tính năng askForHumanComfirmation
  - nâng cấp sử dụng sdk genai mới thay cho generativeai cũ

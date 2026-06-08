@@ -6,6 +6,7 @@ import { clickTool, performClick } from './tools/click';
 import { typeTool, performType } from './tools/type';
 import { scrollTool, performScroll } from './tools/scroll';
 import { doneTool, performDone } from './tools/done';
+import { keypressTool, performKeypress } from './tools/keypress';
 
 // Tạm thời áp dụng plugin stealth
 (chromium as any).use(stealth());
@@ -65,6 +66,8 @@ export class Core implements ICore {
                     return await performType(this.page, action);
                 case 'scroll':
                     return await performScroll(this.page);
+                case 'keypress':
+                    return await performKeypress(this.page, action);
                 case 'done':
                     return await performDone();
                 default:
@@ -139,6 +142,7 @@ export class Core implements ICore {
             clickTool,
             typeTool,
             scrollTool,
+            keypressTool,
             doneTool
         ];
     }
