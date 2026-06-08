@@ -1,4 +1,4 @@
-export const semanticUiTreeEvaluateScript = String.raw`
+export const semanticUiTreeEvaluateScript = `
 (() => {
   const ATTRS = [
     "id",
@@ -144,7 +144,7 @@ export const semanticUiTreeEvaluateScript = String.raw`
   const SEMANTIC_ATTRS = ATTRS.filter((a) => a !== "class");
 
   function cleanText(s, max = 160) {
-    const t = (s ?? "").replace(/\s+/g, " ").trim();
+    const t = (s == null ? "" : String(s)).replace(/\\s+/g, " ").trim();
     if (!t) return undefined;
     return t.length > max ? t.slice(0, max) + "…" : t;
   }
@@ -169,19 +169,19 @@ export const semanticUiTreeEvaluateScript = String.raw`
       return CSS.escape(s);
     }
 
-    return String(s).replace(/([^\w-])/g, "\\$1");
+    return String(s).replace(/([^\\w-])/g, "\\\\$1");
   }
 
   function escAttrValue(s) {
     return String(s)
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, "\\A ")
-      .replace(/\r/g, "\\D ");
+      .replace(/\\\\/g, "\\\\\\\\")
+      .replace(/"/g, '\\\\"')
+      .replace(/\\n/g, "\\\\A ")
+      .replace(/\\r/g, "\\\\D ");
   }
 
   function attrSel(tag, attr, value) {
-    return \`\${tag}[\${attr}="\${escAttrValue(value)}"]\`;
+    return tag + "[" + attr + "=\\"" + escAttrValue(value) + "\\"]";
   }
 
   function unique(sel) {
@@ -205,14 +205,14 @@ export const semanticUiTreeEvaluateScript = String.raw`
         break;
       }
 
-      const same = [...parent.children].filter(
+      const same = Array.from(parent.children).filter(
         (x) => x.tagName.toLowerCase() === tag
       );
 
       if (same.length === 1) {
         parts.unshift(tag);
       } else {
-        parts.unshift(\`\${tag}:nth-of-type(\${same.indexOf(cur) + 1})\`);
+        parts.unshift(tag + ":nth-of-type(" + (same.indexOf(cur) + 1) + ")");
       }
 
       cur = parent;
@@ -229,15 +229,15 @@ export const semanticUiTreeEvaluateScript = String.raw`
 
     const id = el.getAttribute("id");
     if (id) {
-      candidates.push(\`\${tag}#\${escIdent(id)}\`);
-      candidates.push(\`#\${escIdent(id)}\`);
+      candidates.push(tag + "#" + escIdent(id));
+      candidates.push("#" + escIdent(id));
     }
 
     for (const a of ["data-testid", "data-cy", "data-test"]) {
       const v = el.getAttribute(a);
       if (v) {
         candidates.push(attrSel(tag, a, v));
-        candidates.push(\`[\${a}="\${escAttrValue(v)}"]\`);
+        candidates.push("[" + a + "=\\"" + escAttrValue(v) + "\\"]");
       }
     }
 
@@ -270,9 +270,9 @@ export const semanticUiTreeEvaluateScript = String.raw`
 
   function directNodeText(el) {
     return cleanText(
-      [...el.childNodes]
+      Array.from(el.childNodes)
         .filter((n) => n.nodeType === Node.TEXT_NODE)
-        .map((n) => n.textContent ?? "")
+        .map((n) => n.textContent || "")
         .join(" ")
     );
   }
@@ -318,7 +318,7 @@ export const semanticUiTreeEvaluateScript = String.raw`
   function childSemanticText(el) {
     const parts = [];
 
-    for (const child of [...el.children]) {
+    for (const child of Array.from(el.children)) {
       if (!visible(child)) continue;
       if (!isImportantChild(child)) continue;
 
@@ -356,7 +356,7 @@ export const semanticUiTreeEvaluateScript = String.raw`
     const id = el.getAttribute("id");
 
     if (id) {
-      const label = document.querySelector(\`label[for="\${escAttrValue(id)}"]\`);
+      const label = document.querySelector("label[for=\\"" + escAttrValue(id) + "\\"]");
       if (label) {
         const t = cleanText(label.innerText);
         if (t) return t;
@@ -375,7 +375,7 @@ export const semanticUiTreeEvaluateScript = String.raw`
     const labelledby = el.getAttribute("aria-labelledby");
     if (labelledby) {
       const parts = labelledby
-        .split(/\s+/)
+        .split(/\\s+/)
         .map((id) => document.getElementById(id))
         .filter(Boolean)
         .map((node) => cleanText(node.innerText))
@@ -415,12 +415,12 @@ export const semanticUiTreeEvaluateScript = String.raw`
   function build(el) {
     const children = [];
 
-    for (const child of [...el.children]) {
+    for (const child of Array.from(el.children)) {
       const n = build(child);
       if (!n) continue;
 
       if (n.tag === "__fragment__") {
-        children.push(...(n.children ?? []));
+        children.push(...(n.children || []));
       } else {
         children.push(n);
       }
@@ -474,7 +474,7 @@ export const semanticUiTreeEvaluateScript = String.raw`
     tag: "page",
     title: document.title,
     href: window.location.href,
-    children: body?.children ?? [],
+    children: body && body.children ? body.children : [],
   };
 })()
 `;
