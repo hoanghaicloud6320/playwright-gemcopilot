@@ -22,7 +22,7 @@ export interface BrowserAction {
 export interface ActionResult {
     success: boolean;
     message: string;
-    errorType?: 'timeout' | 'selector_not_found' | 'navigation_failed' | 'unknown' | 'keyboard_error' | 'missing_parameter';
+    errorType?: 'timeout' | 'selector_not_found' | 'navigation_failed' | 'unknown' | 'keyboard_error' | 'missing_parameter' | 'element_not_found' | 'multiple_elements_found' | 'error';
     suggestion?: string;
 }
 
