@@ -1,6 +1,11 @@
 import { chromium } from 'playwright-extra';
 import stealth from 'puppeteer-extra-plugin-stealth';
 import { ICore, BrowserConfig, BrowserAction, BrowserState, ToolDefinition, ActionResult } from './interface';
+import { navigateTool, performNavigate } from './tools/navigate';
+import { clickTool, performClick } from './tools/click';
+import { typeTool, performType } from './tools/type';
+import { scrollTool, performScroll } from './tools/scroll';
+import { doneTool, performDone } from './tools/done';
 
 // Tạm thời áp dụng plugin stealth
 (chromium as any).use(stealth());
@@ -51,53 +56,17 @@ export class Core implements ICore {
     async performAction(action: BrowserAction): Promise<ActionResult> {
         try {
             const actionType = action.type;
-            const args = action;
             switch (actionType) {
                 case 'navigate':
-                    if (args.url) {
-                        await this.page.goto(args.url);
-                        return { success: true, message: `Đã điều hướng thành công đến ${args.url}` };
-                    }
-                    return { success: false, message: "Thiếu URL để điều hướng", errorType: 'navigation_failed' };
+                    return await performNavigate(this.page, action);
                 case 'click':
-                    if (args.selector) {
-                        try {
-                        await this.page.waitForSelector(args.selector, { timeout: 5000 });
-                        await this.page.click(args.selector);
-                            return { success: true, message: `Đã click thành công vào ${args.selector}` };
-                        } catch (e: unknown) {
-                            const error = e instanceof Error ? e.message : String(e);
-                            return {
-                                success: false,
-                                message: `Không thể click vào ${args.selector}: ${error}`,
-                                errorType: 'timeout',
-                                suggestion: 'Có thể selector không tồn tại hoặc trang chưa tải xong. Hãy kiểm tra lại DOM snapshot hoặc đợi thêm.'
-                };
-                        }
-                    }
-                    return { success: false, message: "Thiếu selector để click", errorType: 'selector_not_found' };
+                    return await performClick(this.page, action);
                 case 'type':
-                    if (args.selector && args.text) {
-                        try {
-                            await this.page.waitForSelector(args.selector, { timeout: 5000 });
-                            await this.page.fill(args.selector, args.text);
-                            return { success: true, message: `Đã nhập văn bản vào ${args.selector}` };
-                        } catch (e: unknown) {
-                            const error = e instanceof Error ? e.message : String(e);
-        return {
-                                success: false,
-                                message: `Không thể nhập văn bản vào ${args.selector}: ${error}`,
-                                errorType: 'timeout',
-                                suggestion: 'Selector có thể đã thay đổi hoặc phần tử không khả dụng để nhập.'
-        };
-    }
-                    }
-                    return { success: false, message: "Thiếu selector hoặc text để nhập", errorType: 'selector_not_found' };
+                    return await performType(this.page, action);
                 case 'scroll':
-                    await this.page.evaluate(() => window.scrollBy(0, window.innerHeight));
-                    return { success: true, message: "Đã cuộn trang" };
+                    return await performScroll(this.page);
                 case 'done':
-                    return { success: true, message: "Tác vụ đã hoàn thành" };
+                    return await performDone();
                 default:
                     return { success: false, message: `Hành động không xác định: ${actionType}`, errorType: 'unknown' };
             }
@@ -166,54 +135,11 @@ export class Core implements ICore {
 
     getTools(): ToolDefinition[] {
         return [
-            {
-                name: 'navigate',
-                description: 'Điều hướng trình duyệt đến một URL cụ thể',
-                parameters: {
-                    type: 'object',
-                    properties: { url: { type: 'string' } },
-                    required: ['url']
-                }
-            },
-            {
-                name: 'click',
-                description: 'Nhấp vào một phần tử dựa trên selector',
-                parameters: {
-                    type: 'object',
-                    properties: { selector: { type: 'string' } },
-                    required: ['selector']
-                }
-            },
-            {
-                name: 'type',
-                description: 'Nhập văn bản vào một phần tử dựa trên selector',
-                parameters: {
-                    type: 'object',
-                    properties: {
-                        selector: { type: 'string' },
-                        text: { type: 'string' }
-                    },
-                    required: ['selector', 'text']
-                }
-            },
-            {
-                name: 'scroll',
-                description: 'Cuộn trang xuống',
-                parameters: {
-                    type: 'object',
-                    properties: {},
-                    required: []
-                }
-            },
-            {
-                name: 'done',
-                description: 'Hoàn thành tác vụ',
-                parameters: {
-                    type: 'object',
-                    properties: {},
-                    required: []
-                }
-            }
+            navigateTool,
+            clickTool,
+            typeTool,
+            scrollTool,
+            doneTool
         ];
     }
 }
