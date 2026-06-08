@@ -1,98 +1,5 @@
-import { chromium } from "playwright-core";
-import fs from "node:fs";
-import path from "node:path";
-
-const CASES_DIR = "./cases";
-const OUTPUTS_DIR = "./outputs";
-
-// Edge thường nằm ở 1 trong 2 path này.
-const EDGE_PATHS = [
-  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-];
-
-async function main() {
-  if (!fs.existsSync(CASES_DIR)) {
-    fs.mkdirSync(CASES_DIR);
-    console.log("Created ./cases. Put .html files there, then run again.");
-    return;
-  }
-
-  if (!fs.existsSync(OUTPUTS_DIR)) {
-    fs.mkdirSync(OUTPUTS_DIR);
-  }
-
-  const files = fs
-    .readdirSync(CASES_DIR)
-    .filter((f) => f.endsWith(".html"))
-    .sort();
-
-  if (files.length === 0) {
-    console.log("No .html files in ./cases");
-    return;
-  }
-
-  const executablePath = EDGE_PATHS.find((p) => fs.existsSync(p));
-
-  if (!executablePath) {
-    console.error("Cannot find Microsoft Edge executable.");
-    console.error("Checked:");
-    for (const p of EDGE_PATHS) console.error(" - " + p);
-    process.exitCode = 1;
-    return;
-  }
-
-  const browser = await chromium.launch({
-    headless: false,
-    executablePath,
-  });
-
-  const page = await browser.newPage({
-    viewport: {
-      width: 1280,
-      height: 720,
-    },
-  });
-
-  for (const file of files) {
-    const html = fs.readFileSync(path.join(CASES_DIR, file), "utf8");
-
-    await page.setContent(
-      `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>${escapeHtml(file)}</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 16px;
-    }
-  </style>
-</head>
-<body>
-${html}
-</body>
-</html>`,
-      { waitUntil: "domcontentloaded" }
-    );
-
-    const tree = await page.evaluate(makeSemanticTree);
-
-    const outputFile = path.basename(file, ".html") + ".json";
-    const outputPath = path.join(OUTPUTS_DIR, outputFile);
-
-    fs.writeFileSync(outputPath, JSON.stringify(tree, null, 2), "utf8");
-
-    console.log(`OK: ${file} -> ${outputPath}`);
-  }
-
-  await browser.close();
-
-  console.log(`\nDone. Outputs saved in ${OUTPUTS_DIR}`);
-}
-
-function makeSemanticTree() {
+export const semanticUiTreeEvaluateScript = String.raw`
+(() => {
   const ATTRS = [
     "id",
     "class",
@@ -151,6 +58,8 @@ function makeSemanticTree() {
     "h6",
     "p",
     "img",
+    "summary",
+    "details",
   ]);
 
   const KEEP_ROLES = new Set([
@@ -229,10 +138,9 @@ function makeSemanticTree() {
     "h6",
     "p",
     "li",
+    "summary",
   ]);
 
-  // Không dùng class để quyết định giữ node.
-  // class vẫn được output nếu node đã được giữ vì lý do khác.
   const SEMANTIC_ATTRS = ATTRS.filter((a) => a !== "class");
 
   function cleanText(s, max = 160) {
@@ -256,16 +164,24 @@ function makeSemanticTree() {
     );
   }
 
-  function esc(s) {
+  function escIdent(s) {
     if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
       return CSS.escape(s);
     }
 
-    return String(s).replace(/["\\]/g, "\\$&");
+    return String(s).replace(/([^\w-])/g, "\\$1");
+  }
+
+  function escAttrValue(s) {
+    return String(s)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, "\\A ")
+      .replace(/\r/g, "\\D ");
   }
 
   function attrSel(tag, attr, value) {
-    return `${tag}[${attr}="${esc(value)}"]`;
+    return \`\${tag}[\${attr}="\${escAttrValue(value)}"]\`;
   }
 
   function unique(sel) {
@@ -296,7 +212,7 @@ function makeSemanticTree() {
       if (same.length === 1) {
         parts.unshift(tag);
       } else {
-        parts.unshift(`${tag}:nth-of-type(${same.indexOf(cur) + 1})`);
+        parts.unshift(\`\${tag}:nth-of-type(\${same.indexOf(cur) + 1})\`);
       }
 
       cur = parent;
@@ -313,16 +229,19 @@ function makeSemanticTree() {
 
     const id = el.getAttribute("id");
     if (id) {
-      candidates.push(`${tag}#${esc(id)}`);
-      candidates.push(`#${esc(id)}`);
+      candidates.push(\`\${tag}#\${escIdent(id)}\`);
+      candidates.push(\`#\${escIdent(id)}\`);
     }
 
-    for (const a of ["data-testid", "data-test", "data-cy"]) {
+    for (const a of ["data-testid", "data-cy", "data-test"]) {
       const v = el.getAttribute(a);
-      if (v) candidates.push(attrSel(tag, a, v));
+      if (v) {
+        candidates.push(attrSel(tag, a, v));
+        candidates.push(\`[\${a}="\${escAttrValue(v)}"]\`);
+      }
     }
 
-    for (const a of ["name", "aria-label", "placeholder", "title"]) {
+    for (const a of ["name", "aria-label"]) {
       const v = el.getAttribute(a);
       if (v) candidates.push(attrSel(tag, a, v));
     }
@@ -330,6 +249,11 @@ function makeSemanticTree() {
     const href = el.getAttribute("href");
     if (href && tag === "a") {
       candidates.push(attrSel(tag, "href", href));
+    }
+
+    for (const a of ["placeholder", "title"]) {
+      const v = el.getAttribute(a);
+      if (v) candidates.push(attrSel(tag, a, v));
     }
 
     const type = el.getAttribute("type");
@@ -350,6 +274,32 @@ function makeSemanticTree() {
         .filter((n) => n.nodeType === Node.TEXT_NODE)
         .map((n) => n.textContent ?? "")
         .join(" ")
+    );
+  }
+
+  function hasSemanticAttr(el) {
+    return SEMANTIC_ATTRS.some((a) => cleanText(el.getAttribute(a)));
+  }
+
+  function interactive(el) {
+    const tag = el.tagName.toLowerCase();
+    const role = el.getAttribute("role");
+
+    return (
+      [
+        "button",
+        "a",
+        "input",
+        "textarea",
+        "select",
+        "option",
+        "label",
+        "summary",
+      ].includes(tag) ||
+      (!!role && KEEP_ROLES.has(role)) ||
+      el.hasAttribute("onclick") ||
+      el.hasAttribute("tabindex") ||
+      el.getAttribute("contenteditable") === "true"
     );
   }
 
@@ -382,17 +332,12 @@ function makeSemanticTree() {
   function directText(el) {
     const tag = el.tagName.toLowerCase();
 
-    // Container lớn: không lấy text tổng hợp để tránh nhiễu kiểu:
-    // form.text = "Email Password Login..."
     if (CONTAINER_TAGS_NO_TEXT.has(tag)) {
       return undefined;
     }
 
     const direct = directNodeText(el);
 
-    // Những tag này cần lấy text sâu bên trong span/strong/icon wrapper.
-    // Nhưng nếu text đó chỉ là text của child semantic quan trọng,
-    // ví dụ td > button "Xóa", thì bỏ text của td để tránh lặp.
     if (TEXT_BEARING_TAGS.has(tag)) {
       const full = cleanText(el.innerText);
       const childText = childSemanticText(el);
@@ -411,7 +356,7 @@ function makeSemanticTree() {
     const id = el.getAttribute("id");
 
     if (id) {
-      const label = document.querySelector(`label[for="${esc(id)}"]`);
+      const label = document.querySelector(\`label[for="\${escAttrValue(id)}"]\`);
       if (label) {
         const t = cleanText(label.innerText);
         if (t) return t;
@@ -440,32 +385,6 @@ function makeSemanticTree() {
     }
 
     return undefined;
-  }
-
-  function hasSemanticAttr(el) {
-    return SEMANTIC_ATTRS.some((a) => cleanText(el.getAttribute(a)));
-  }
-
-  function interactive(el) {
-    const tag = el.tagName.toLowerCase();
-    const role = el.getAttribute("role");
-
-    return (
-      [
-        "button",
-        "a",
-        "input",
-        "textarea",
-        "select",
-        "option",
-        "label",
-        "summary",
-      ].includes(tag) ||
-      (!!role && KEEP_ROLES.has(role)) ||
-      el.hasAttribute("onclick") ||
-      el.hasAttribute("tabindex") ||
-      el.getAttribute("contenteditable") === "true"
-    );
   }
 
   function ownTextUseful(el) {
@@ -557,17 +476,5 @@ function makeSemanticTree() {
     href: window.location.href,
     children: body?.children ?? [],
   };
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+})()
+`;

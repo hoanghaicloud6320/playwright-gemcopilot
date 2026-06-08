@@ -34,7 +34,7 @@ export interface ToolDefinition {
     description: string;
     parameters: {
         type: 'object';
-        properties: Record<string, any>;
+        properties: Record<string, unknown>;
         required: string[];
     };
 }
@@ -43,7 +43,7 @@ export interface BrowserState {
     url: string;
     title: string;
     screenshot: Buffer; // Hoặc base64 string
-    domSnapshot: string;
+    semanticUiTree: string;
 }
 
 export interface ICore {

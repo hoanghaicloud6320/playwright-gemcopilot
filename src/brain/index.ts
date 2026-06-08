@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, FunctionDeclaration, Tool, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, FunctionDeclaration, Tool, SchemaType, FunctionDeclarationSchemaProperty } from "@google/generative-ai";
 import { IBrain } from "./interface";
 import { ICore,BrowserAction } from "../core/interface";
 
@@ -25,7 +25,7 @@ export class Brain implements IBrain {
                     description: tool.description,
                     parameters: {
                         type: SchemaType.OBJECT,
-                        properties: tool.parameters.properties,
+                        properties: tool.parameters.properties as { [k: string]: FunctionDeclarationSchemaProperty },
                         required: tool.parameters.required
                     }
                 }))
@@ -47,7 +47,7 @@ export class Brain implements IBrain {
                 Trạng thái hiện tại: URL: \`${state.url}\`, Title: \`${state.title}\`.
                 Cấu trúc trang rút gọn (Simplified DOM):
                 \`\`\`json
-                ${state.domSnapshot}
+                ${state.semanticUiTree}
                 \`\`\`
             `;
 
