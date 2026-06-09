@@ -1,3 +1,6 @@
+ - tiết kiệm token:
+  + xem xét screenshot
+  + ko dùng chat session (bay token cực nhanh), sử dụng prompt stateless
  - DOM summarizer cần cải thiện (dự tính sử dụng json UI tree). từ đó các tool cũng sẽ phải thích ứng theo, và ko sử dụng selector nữa:
   + giới hạn độ sâu
   + xem xét trường hợp visible

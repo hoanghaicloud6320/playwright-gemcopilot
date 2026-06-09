@@ -14,7 +14,7 @@ const EDGE_PATHS = [
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
 ];
 
-const USER_DATA_DIR = path.resolve("./mybotprofile");
+const USER_DATA_DIR = path.resolve("./test_profile");
 
 async function main() {
   const executablePath = EDGE_PATHS.find((p) => fs.existsSync(p));

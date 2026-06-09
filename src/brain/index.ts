@@ -4,6 +4,14 @@ import { ICore, BrowserAction } from "../core/interface";
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+interface HistoryEntry {
+    call: {
+        name: string;
+        args: object;
+    };
+    response: unknown;
+}
+
 export class Brain implements IBrain {
     private genAI: GoogleGenerativeAI;
     private modelName: string = "gemini-1.5-flash";
@@ -50,18 +58,28 @@ export class Brain implements IBrain {
             }]
         });
 
-        // Chat session để lưu context và hỗ trợ function calling tốt hơn
-        const chat = model.startChat();
+        const history: HistoryEntry[] = [];
         let running = true;
         let turn = 0;
+
         while (running && turn <= 20) {
             turn++;
             const state = await core.getCurrentState();
             const screenshotBase64 = state.screenshot.toString("base64");
 
+            const historyText = history.slice(-5).map((h, i) =>
+                `Lần ${i + 1}: Gọi ${h.call.name}(${JSON.stringify(h.call.args)}) -> Kết quả: ${JSON.stringify(h.response)}`
+            ).join("\n");
+
             const promptText = `
+                lưu ý:
+                 - nếu nhiệm vụ đã hoàn thành thì phản hồi mà ko gọi tool để kết thúc vòng lặp này!
+                 - các phản hồi khi đang trong vòng lặp vẫn có thể phản hồi text nhưng cần kèm function calling để giữ cho vòng lặp sống!
+
                 Nhiệm vụ: \`${prompt}\`.
-                Trạng thái hiện tại: URL: \`${state.url}\`, Title: \`${state.title}\`.
+                Lịch sử hành động gần đây (tối đa 5):
+                ${historyText || "Chưa có hành động nào."}
+
                 Cấu trúc trang rút gọn (Simplified DOM):
                 \`\`\`json
                 ${state.semanticUiTree}
@@ -72,7 +90,7 @@ export class Brain implements IBrain {
                 await this.logDebug(logFilename, `[TURN ${turn} - PROMPT]\n${promptText}`);
             }
 
-            const result = await chat.sendMessage([
+            const result = await model.generateContent([
                 { text: promptText },
                 { inlineData: { mimeType: "image/png", data: screenshotBase64 } }
             ]);
@@ -81,53 +99,35 @@ export class Brain implements IBrain {
                 await this.logDebug(logFilename, `[TURN ${turn} - RESPONSE]\n${JSON.stringify(result.response, null, 2)}`);
             }
 
-            // Sử dụng functionCalls() (SDK v0.2+)
             const calls = result.response.functionCalls();
 
             if (calls && calls.length > 0) {
-                const text = result.response.text();
-                if (text) {
-                    console.log("AI message:", text);
-                }
-
                 const call = calls[0];
                 console.log("LLM Requested Tool:", call.name, call.args);
 
-                // Thực thi action qua core
                 const action: BrowserAction = {
                     type: call.name as BrowserAction['type'],
-                    ...call.args
+                    ...(call.args as object)
                 } as BrowserAction;
 
                 const actionResult = await core.performAction(action);
                 console.log("Tool execution result:", actionResult);
 
+                history.push({
+                    call: { name: call.name, args: call.args as object },
+                    response: actionResult
+                });
+
                 await new Promise(r => setTimeout(r, 2000));
-
-                // Log phần Function Response trước khi gửi cho LLM
-                const functionResponsePayload = {
-                        name: call.name,
-                        response: { result: JSON.stringify(actionResult) }
-                };
-                if (this.debug) {
-                    await this.logDebug(logFilename, `[TURN ${turn} - FUNCTION RESPONSE]\n${JSON.stringify(functionResponsePayload, null, 2)}`);
-            }
-
-                // Gửi FunctionResponse về cho LLM
-                await chat.sendMessage([{
-                    functionResponse: functionResponsePayload
-                }]);
             } else {
                 const finalResponse = result.response.text();
                 console.log("Agent Final Response:", finalResponse);
-
                 if (this.debug) {
                     await this.logDebug(logFilename, `[FINAL RESPONSE]\n${finalResponse}`);
                 }
-
                 running = false;
+            }
         }
     }
-}
 }
 

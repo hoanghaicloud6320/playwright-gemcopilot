@@ -16,7 +16,6 @@ import { navigateTool, performNavigate } from './tools/navigate';
 import { clickTool, performClick } from './tools/click';
 import { typeTool, performType } from './tools/type';
 import { scrollTool, performScroll } from './tools/scroll';
-import { doneTool, performDone } from './tools/done';
 import { keypressTool, performKeypress } from './tools/keypress';
 import {
     askForHumanConfirmationTool,
@@ -111,9 +110,6 @@ export class Core implements ICore {
                 case 'askForHumanConfirmation':
                     return await performAskForHumanConfirmation(action);
 
-                case 'done':
-                    return await performDone();
-
                 default:
                     return {
                         success: false,
@@ -155,7 +151,6 @@ export class Core implements ICore {
             scrollTool,
             keypressTool,
             askForHumanConfirmationTool,
-            doneTool
         ];
     }
 }
