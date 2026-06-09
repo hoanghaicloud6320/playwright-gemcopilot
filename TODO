@@ -1,2 +1,4 @@
- - DOM summarizer cần cải thiện (dự tính sử dụng json UI tree). từ đó các tool cũng sẽ phải thích ứng theo, và ko sử dụng selector nữa
+ - DOM summarizer cần cải thiện (dự tính sử dụng json UI tree). từ đó các tool cũng sẽ phải thích ứng theo, và ko sử dụng selector nữa:
+  + giới hạn độ sâu
+  + xem xét trường hợp visible
  - nâng cấp sử dụng sdk genai mới thay cho generativeai cũ

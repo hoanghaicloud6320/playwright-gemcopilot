@@ -9,7 +9,9 @@ dotenv.config();
 async function main() {
     const core = new Core();
     console.log("GOOGLE_API_KEY present:", !!process.env.GOOGLE_API_KEY);
-    const brain = new Brain(process.env.GOOGLE_API_KEY || "");
+
+    const isDebug = process.argv.includes('--debug');
+    const brain = new Brain(process.env.GOOGLE_API_KEY || "", isDebug);
 
     if (process.env.model) {
         brain.setModel(process.env.model);

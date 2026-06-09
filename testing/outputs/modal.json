@@ -1,0 +1,42 @@
+{
+  "tag": "page",
+  "title": "modal.html",
+  "href": "about:blank",
+  "children": [
+    {
+      "tag": "div",
+      "selector": "div[aria-label=\"Delete\\ project\"]",
+      "visible": true,
+      "role": "dialog",
+      "aria-label": "Delete project",
+      "children": [
+        {
+          "tag": "h2",
+          "selector": "div > div > h2",
+          "visible": true,
+          "text": "Delete project?"
+        },
+        {
+          "tag": "p",
+          "selector": "div > div > p",
+          "visible": true,
+          "text": "This action cannot be undone."
+        },
+        {
+          "tag": "button",
+          "selector": "div > div > button:nth-of-type(1)",
+          "visible": true,
+          "text": "Cancel"
+        },
+        {
+          "tag": "button",
+          "selector": "button[data-cy=\"confirm-delete\"]",
+          "visible": true,
+          "class": "danger",
+          "data-cy": "confirm-delete",
+          "text": "Delete"
+        }
+      ]
+    }
+  ]
+}

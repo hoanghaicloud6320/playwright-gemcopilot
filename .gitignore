@@ -27,3 +27,6 @@ Thumbs.db
 # Browser Profiles
 test_profile/
 
+# Debug
+debug_logs/
+
