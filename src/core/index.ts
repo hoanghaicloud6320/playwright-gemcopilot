@@ -23,7 +23,7 @@ import {
     performAskForHumanConfirmation
 } from './tools/askForHumanConfirmation';
 
-import { semanticUiTreeEvaluateScript } from './semantic-ui-tree.js';
+import { makeSemanticUiTree } from './semantic-ui-tree.js';
 
 // Tạm thời áp dụng plugin stealth
 // @ts-ignore
@@ -136,7 +136,7 @@ export class Core implements ICore {
         if (!this.page) throw new Error("Page not initialized");
         const page = this.page;
 
-        const semanticTree = await page.evaluate(semanticUiTreeEvaluateScript);
+        const semanticTree = await page.evaluate(makeSemanticUiTree);
 
         return {
             url: page.url(),
