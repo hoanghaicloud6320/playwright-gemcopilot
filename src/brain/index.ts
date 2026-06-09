@@ -1,21 +1,39 @@
-import { GoogleGenerativeAI, FunctionDeclaration, Tool, SchemaType, FunctionDeclarationSchemaProperty } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, FunctionDeclarationSchemaProperty } from "@google/generative-ai";
 import { IBrain } from "./interface";
-import { ICore,BrowserAction } from "../core/interface";
+import { ICore, BrowserAction } from "../core/interface";
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class Brain implements IBrain {
     private genAI: GoogleGenerativeAI;
     private modelName: string = "gemini-1.5-flash";
+    private debug: boolean = false;
 
-    constructor(apiKey: string) {
+    constructor(apiKey: string, debug: boolean = false) {
         this.genAI = new GoogleGenerativeAI(apiKey);
+        this.debug = debug;
     }
 
     setModel(modelName: string): void {
         this.modelName = modelName;
     }
 
+    private async logDebug(filename: string, content: string) {
+        if (!this.debug) return;
+        const dir = path.join(process.cwd(), 'debug_logs');
+        try {
+            await fs.mkdir(dir, { recursive: true });
+            // Thay đổi sang append để lưu vào cùng 1 file
+            await fs.appendFile(path.join(dir, filename), content + "\n\n---SEPARATOR---\n\n");
+        } catch (e) {
+            console.error("Failed to write debug log:", e);
+        }
+    }
+
     async process(prompt: string, core: ICore): Promise<void> {
         console.log("Brain processing prompt:", prompt);
+        const sessionId = Date.now().toString();
+        const logFilename = `session_${sessionId}.log`;
 
         const model = this.genAI.getGenerativeModel({
             model: this.modelName,
@@ -34,7 +52,6 @@ export class Brain implements IBrain {
 
         // Chat session để lưu context và hỗ trợ function calling tốt hơn
         const chat = model.startChat();
-
         let running = true;
         let turn = 0;
         while (running && turn <= 20) {
@@ -51,10 +68,18 @@ export class Brain implements IBrain {
                 \`\`\`
             `;
 
+            if (this.debug) {
+                await this.logDebug(logFilename, `[TURN ${turn} - PROMPT]\n${promptText}`);
+            }
+
             const result = await chat.sendMessage([
                 { text: promptText },
                 { inlineData: { mimeType: "image/png", data: screenshotBase64 } }
             ]);
+
+            if (this.debug) {
+                await this.logDebug(logFilename, `[TURN ${turn} - RESPONSE]\n${JSON.stringify(result.response, null, 2)}`);
+            }
 
             // Sử dụng functionCalls() (SDK v0.2+)
             const calls = result.response.functionCalls();
@@ -79,18 +104,30 @@ export class Brain implements IBrain {
 
                 await new Promise(r => setTimeout(r, 2000));
 
-                // Gửi FunctionResponse về cho LLM
-                await chat.sendMessage([{
-                    functionResponse: {
+                // Log phần Function Response trước khi gửi cho LLM
+                const functionResponsePayload = {
                         name: call.name,
                         response: { result: JSON.stringify(actionResult) }
-                    }
+                };
+                if (this.debug) {
+                    await this.logDebug(logFilename, `[TURN ${turn} - FUNCTION RESPONSE]\n${JSON.stringify(functionResponsePayload, null, 2)}`);
+            }
+
+                // Gửi FunctionResponse về cho LLM
+                await chat.sendMessage([{
+                    functionResponse: functionResponsePayload
                 }]);
             } else {
-                console.log("Agent Final Response:", result.response.text());
+                const finalResponse = result.response.text();
+                console.log("Agent Final Response:", finalResponse);
+
+                if (this.debug) {
+                    await this.logDebug(logFilename, `[FINAL RESPONSE]\n${finalResponse}`);
+                }
+
                 running = false;
-            }
         }
     }
+}
 }
 
