@@ -75,12 +75,13 @@ export class Brain implements IBrain {
                 lưu ý:
                  - nếu nhiệm vụ đã hoàn thành thì phản hồi mà ko gọi tool để kết thúc vòng lặp này!
                  - các phản hồi khi đang trong vòng lặp vẫn có thể phản hồi text nhưng cần kèm function calling để giữ cho vòng lặp sống!
+                 - các selector cho các tool **nên** sử dụng các selector gắn sẵn trong SemanticUItree (runtime đã tính sẵn selector để unique nhất)
 
                 Nhiệm vụ: \`${prompt}\`.
                 Lịch sử hành động gần đây (tối đa 5):
                 ${historyText || "Chưa có hành động nào."}
 
-                Cấu trúc trang rút gọn (Simplified DOM):
+                Cấu trúc trang rút gọn (Simplified DOM/SemanticUItree):
                 \`\`\`json
                 ${state.semanticUiTree}
                 \`\`\`
@@ -92,7 +93,7 @@ export class Brain implements IBrain {
 
             const result = await model.generateContent([
                 { text: promptText },
-                { inlineData: { mimeType: "image/png", data: screenshotBase64 } }
+                //{ inlineData: { mimeType: "image/png", data: screenshotBase64 } }
             ]);
 
             if (this.debug) {
