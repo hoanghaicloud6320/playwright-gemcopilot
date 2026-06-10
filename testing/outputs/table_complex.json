@@ -1,74 +1,31 @@
 {
-  "tag": "page",
-  "title": "table_complex.html",
-  "href": "about:blank",
-  "children": [
+  "page": {
+    "url": "file:///C:/Users/thuanvl/Desktop/codes/playwright-gemcopilot/testing/cases/table_complex.html"
+  },
+  "regions": [
     {
-      "tag": "table",
-      "selector": "table[aria-label=\"Danh\\ sách\\ người\\ dùng\"]",
-      "visible": true,
-      "aria-label": "Danh sách người dùng",
-      "children": [
-        {
-          "tag": "thead",
-          "selector": "table > thead",
-          "visible": true,
-          "children": [
-            {
-              "tag": "tr",
-              "selector": "table > thead > tr",
-              "visible": true,
-              "children": [
-                {
-                  "tag": "th",
-                  "selector": "table > thead > tr > th:nth-of-type(1)",
-                  "visible": true,
-                  "text": "Tên"
-                },
-                {
-                  "tag": "th",
-                  "selector": "table > thead > tr > th:nth-of-type(2)",
-                  "visible": true,
-                  "text": "Hành động"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "tag": "tbody",
-          "selector": "table > tbody",
-          "visible": true,
-          "children": [
-            {
-              "tag": "tr",
-              "selector": "table > tbody > tr",
-              "visible": true,
-              "children": [
-                {
-                  "tag": "td",
-                  "selector": "table > tbody > tr > td:nth-of-type(1)",
-                  "visible": true,
-                  "text": "Nguyễn Văn A"
-                },
-                {
-                  "tag": "td",
-                  "selector": "table > tbody > tr > td:nth-of-type(2)",
-                  "visible": true,
-                  "children": [
-                    {
-                      "tag": "button",
-                      "selector": "table > tbody > tr > td:nth-of-type(2) > button",
-                      "visible": true,
-                      "text": "Xóa"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
+      "id": "r1",
+      "role": "table",
+      "name": "Danh sách người dùng"
     }
-  ]
+  ],
+  "actions": [
+    {
+      "role": "button",
+      "name": "Xóa",
+      "selector": "table[aria-label=\"Danh sách người dùng\"] button",
+      "region": "r1",
+      "context": {
+        "role": "row",
+        "name": "Nguyễn Văn A"
+      },
+      "id": "a1"
+    }
+  ],
+  "stats": {
+    "rawCandidates": 1,
+    "emittedActions": 1,
+    "emittedRegions": 1,
+    "bytes": 450
+  }
 }

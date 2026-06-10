@@ -67,7 +67,7 @@ export class Brain implements IBrain {
             const state = await core.getCurrentState();
             const screenshotBase64 = state.screenshot.toString("base64");
 
-            const historyText = history.slice(-5).map((h, i) =>
+            const historyText = history.slice(-20).map((h, i) =>
                 `Lần ${i + 1}: Gọi ${h.call.name}(${JSON.stringify(h.call.args)}) -> Kết quả: ${JSON.stringify(h.response)}`
             ).join("\n");
 
@@ -75,10 +75,10 @@ export class Brain implements IBrain {
                 lưu ý:
                  - nếu nhiệm vụ đã hoàn thành thì phản hồi mà ko gọi tool để kết thúc vòng lặp này!
                  - các phản hồi khi đang trong vòng lặp vẫn có thể phản hồi text nhưng cần kèm function calling để giữ cho vòng lặp sống!
-                 - các selector cho các tool **nên** sử dụng các selector gắn sẵn trong SemanticUItree (runtime đã tính sẵn selector để unique nhất)
+                 - các selector cho các tool **nên** sử dụng các selector gắn sẵn trong SemanticUItree (runtime đã tính sẵn selector để unique nhất có thể)
 
                 Nhiệm vụ: \`${prompt}\`.
-                Lịch sử hành động gần đây (tối đa 5):
+                Lịch sử hành động gần đây (tối đa 20):
                 ${historyText || "Chưa có hành động nào."}
 
                 Cấu trúc trang rút gọn (Simplified DOM/SemanticUItree):

@@ -1,14 +1,19 @@
 {
-  "tag": "page",
-  "title": "wrapper.html",
-  "href": "about:blank",
-  "children": [
+  "page": {
+    "url": "file:///C:/Users/thuanvl/Desktop/codes/playwright-gemcopilot/testing/cases/wrapper.html"
+  },
+  "actions": [
     {
-      "tag": "button",
+      "role": "button",
+      "name": "Search",
       "selector": "button[data-testid=\"search-btn\"]",
-      "visible": true,
-      "data-testid": "search-btn",
-      "text": "Search"
+      "id": "a1"
     }
-  ]
+  ],
+  "stats": {
+    "rawCandidates": 1,
+    "emittedActions": 1,
+    "emittedRegions": 0,
+    "bytes": 288
+  }
 }

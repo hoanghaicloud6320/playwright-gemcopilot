@@ -1,52 +1,62 @@
 {
-  "tag": "page",
-  "title": "edge.html",
-  "href": "about:blank",
-  "children": [
+  "page": {
+    "url": "file:///C:/Users/thuanvl/Desktop/codes/playwright-gemcopilot/testing/cases/edge.html"
+  },
+  "regions": [
     {
-      "tag": "section",
-      "selector": "section[aria-label=\"Actions\"]",
-      "visible": true,
-      "aria-label": "Actions",
-      "children": [
-        {
-          "tag": "button",
-          "selector": "section > button:nth-of-type(1)",
-          "visible": true,
-          "type": "submit",
-          "text": "Save draft"
-        },
-        {
-          "tag": "button",
-          "selector": "section > button:nth-of-type(2)",
-          "visible": true,
-          "type": "submit",
-          "text": "Publish"
-        },
-        {
-          "tag": "input",
-          "selector": "input[name=\"agree\"]",
-          "visible": true,
-          "name": "agree",
-          "type": "checkbox",
-          "checked": true
-        },
-        {
-          "tag": "input",
-          "selector": "input[name=\"readonlyField\"]",
-          "visible": true,
-          "name": "readonlyField",
-          "value": "abc",
-          "readonly": true
-        },
-        {
-          "tag": "button",
-          "selector": "button[data-testid=\"inside-wrapper\"]",
-          "visible": true,
-          "data-testid": "inside-wrapper",
-          "text": "Inside wrapper"
-        }
-      ]
+      "id": "r1",
+      "role": "section",
+      "name": "Actions"
     }
-  ]
+  ],
+  "actions": [
+    {
+      "role": "textbox",
+      "name": "readonlyField",
+      "selector": "input[name=\"readonlyField\"]",
+      "region": "r1",
+      "state": [
+        "readonly"
+      ],
+      "value": "abc",
+      "id": "a1"
+    },
+    {
+      "role": "checkbox",
+      "name": "agree",
+      "selector": "input[name=\"agree\"]",
+      "region": "r1",
+      "state": [
+        "checked"
+      ],
+      "id": "a2"
+    },
+    {
+      "role": "button",
+      "name": "Save draft",
+      "selector": "section[aria-label=\"Actions\"] button[type=\"submit\"]:nth-of-type(1)",
+      "region": "r1",
+      "id": "a3"
+    },
+    {
+      "role": "button",
+      "name": "Publish",
+      "selector": "section[aria-label=\"Actions\"] button[type=\"submit\"]:nth-of-type(2)",
+      "region": "r1",
+      "id": "a4"
+    },
+    {
+      "role": "button",
+      "name": "Inside wrapper",
+      "selector": "button[data-testid=\"inside-wrapper\"]",
+      "region": "r1",
+      "id": "a5"
+    }
+  ],
+  "stats": {
+    "rawCandidates": 5,
+    "emittedActions": 5,
+    "emittedRegions": 1,
+    "bytes": 916
+  }
 }
