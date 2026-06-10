@@ -1,0 +1,44 @@
+[
+  {
+    "file": "basic.html",
+    "actions": 3,
+    "regions": 1,
+    "bytes": 586
+  },
+  {
+    "file": "edge.html",
+    "actions": 5,
+    "regions": 1,
+    "bytes": 916
+  },
+  {
+    "file": "modal.html",
+    "actions": 2,
+    "regions": 1,
+    "bytes": 571
+  },
+  {
+    "file": "table.html",
+    "actions": 2,
+    "regions": 0,
+    "bytes": 482
+  },
+  {
+    "file": "table_complex.html",
+    "actions": 1,
+    "regions": 1,
+    "bytes": 450
+  },
+  {
+    "file": "testlogin.html",
+    "actions": 12,
+    "regions": 5,
+    "bytes": 1804
+  },
+  {
+    "file": "wrapper.html",
+    "actions": 1,
+    "regions": 0,
+    "bytes": 288
+  }
+]

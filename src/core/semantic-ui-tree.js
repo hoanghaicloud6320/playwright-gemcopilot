@@ -1,722 +1,633 @@
-// @ts-check
-// src/core/semanticTree.browser.js
-// Browser-native semantic UI tree extractor.
-// IMPORTANT: keep this file as plain JS so Playwright page.evaluate(fn)
-// receives clean browser code with no tsx/esbuild helper such as __name.
+// semantic-ui-tree.js
+// ESM, self-contained, safe for: page.evaluate(makeSemanticUiTree)
+// Usage from TS/ESM:
+//   import { makeSemanticUiTree } from './semantic-ui-tree.js';
+//   const tree = await page.evaluate(makeSemanticUiTree);
 
-/**
- * @typedef {Object} SelectorCandidate
- * @property {string} selector
- * @property {string} reason
- * @property {number} count
- */
+export function makeSemanticUiTree(options = {}) {
+  const cfg = {
+    maxActions: Number.isFinite(options.maxActions) ? options.maxActions : 80,
+    maxRegions: Number.isFinite(options.maxRegions) ? options.maxRegions : 12,
+    maxBytes: Number.isFinite(options.maxBytes) ? options.maxBytes : 5000,
+    labelLimit: Number.isFinite(options.labelLimit) ? options.labelLimit : 90,
+    contextLimit: Number.isFinite(options.contextLimit) ? options.contextLimit : 180,
+  };
 
-/**
- * @typedef {Object} SelectorInfo
- * @property {string=} selector
- * @property {"unique" | "not_unique"} selectorStatus
- * @property {string} selectorReason
- * @property {SelectorCandidate[]=} selectorCandidates
- */
+  const ACTION_SELECTOR = [
+    'button',
+    'a[href]',
+    'input',
+    'textarea',
+    'select',
+    '[contenteditable="true"]',
+    '[role="button"]',
+    '[role="link"]',
+    '[role="textbox"]',
+    '[role="checkbox"]',
+    '[role="radio"]',
+    '[role="switch"]',
+    '[role="tab"]',
+    '[role="menuitem"]',
+    '[role="option"]',
+    '[onclick]',
+  ].join(',');
 
-/**
- * @typedef {Object} SemanticUiNode
- * @property {string} tag
- * @property {true=} visible
- * @property {"unique" | "not_unique"=} selectorStatus
- * @property {string=} selector
- * @property {string=} selectorReason
- * @property {SelectorCandidate[]=} selectorCandidates
- * @property {SemanticUiNode[]=} children
- * @property {string=} text
- * @property {string=} labelText
- * @property {true=} disabled
- * @property {true=} readonly
- * @property {true=} checked
- * @property {true=} selected
- * @property {true=} focused
- * @property {true=} focusWithin
- * @property {true=} editable
- * @property {true=} canReceiveText
- * @property {true=} canPressEnter
- * @property {true=} hasValue
- * @property {number=} selectionStart
- * @property {number=} selectionEnd
- * @property {string=} id
- * @property {string=} class
- * @property {string=} role
- * @property {string=} name
- * @property {string=} type
- * @property {string=} value
- * @property {string=} placeholder
- * @property {string=} title
- * @property {string=} href
- * @property {string=} src
- * @property {string=} alt
- * @property {string=} for
- * @property {string=} [aria-label]
- * @property {string=} [aria-labelledby]
- * @property {string=} [aria-describedby]
- * @property {string=} [data-testid]
- * @property {string=} [data-test]
- * @property {string=} [data-cy]
- */
+  const REGION_SELECTOR = [
+    'main',
+    'nav',
+    'header',
+    'footer',
+    'aside',
+    'form',
+    'section[aria-label]',
+    'article[aria-label]',
+    'table[aria-label]',
+    '[role="main"]',
+    '[role="navigation"]',
+    '[role="dialog"]',
+    '[role="alertdialog"]',
+    '[role="region"]',
+    '[role="search"]',
+    '[role="form"]',
+  ].join(',');
 
-/**
- * @typedef {Object} SemanticUiTree
- * @property {"page"} tag
- * @property {string} title
- * @property {string} href
- * @property {boolean} truncated
- * @property {SemanticUiNode[]=} activePath
- * @property {SemanticUiNode[]} children
- */
+  function cleanText(s, limit = cfg.labelLimit) {
+    if (s == null) return undefined;
+    const t = String(s).replace(/\s+/g, ' ').trim();
+    if (!t) return undefined;
+    return t.length > limit ? t.slice(0, Math.max(0, limit - 1)) + '…' : t;
+  }
 
-/**
- * Build a compact semantic tree for the current browser page.
- * This function is intentionally self-contained: do not reference Node globals,
- * imported values, or outer-scope variables from here.
- *
- * @returns {SemanticUiTree}
- */
-export function makeSemanticUiTree() {
-    const MAX_TEXT = 160;
-    const MAX_ATTR = 220;
-    const MAX_HREF = 260;
-    const MAX_SRC = 120;
-    const MAX_CHILDREN_PER_NODE = 80;
-    const MAX_TOTAL_NODES = 1200;
-    let emittedNodes = 0;
-    /** @type {SemanticUiNode[]} */
-    const activePath = [];
-    const activeElement = document.activeElement && document.activeElement.nodeType === Node.ELEMENT_NODE
-        ? document.activeElement
-        : null;
-    const TEXT_INPUT_TYPES = new Set([
-        "",
-        "text",
-        "search",
-        "url",
-        "tel",
-        "email",
-        "password",
-        "number",
-    ]);
-    const ATTRS = [
-        "id",
-        "class",
-        "role",
-        "name",
-        "type",
-        "value",
-        "placeholder",
-        "title",
-        "href",
-        "src",
-        "alt",
-        "for",
-        "aria-label",
-        "aria-labelledby",
-        "aria-describedby",
-        "data-testid",
-        "data-test",
-        "data-cy",
-    ];
-    const KEEP_TAGS = new Set([
-        "main",
-        "header",
-        "footer",
-        "nav",
-        "section",
-        "article",
-        "aside",
-        "form",
-        "fieldset",
-        "legend",
-        "label",
-        "button",
-        "a",
-        "input",
-        "textarea",
-        "select",
-        "option",
-        "dialog",
-        "table",
-        "thead",
-        "tbody",
-        "tfoot",
-        "tr",
-        "th",
-        "td",
-        "ul",
-        "ol",
-        "li",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "p",
-        "img",
-        "summary",
-        "details",
-    ]);
-    const KEEP_ROLES = new Set([
-        "button",
-        "link",
-        "textbox",
-        "searchbox",
-        "combobox",
-        "checkbox",
-        "radio",
-        "switch",
-        "dialog",
-        "alertdialog",
-        "navigation",
-        "main",
-        "form",
-        "search",
-        "region",
-        "list",
-        "listitem",
-        "table",
-        "row",
-        "cell",
-        "grid",
-        "gridcell",
-        "columnheader",
-        "rowheader",
-        "tab",
-        "tablist",
-        "tabpanel",
-        "menu",
-        "menubar",
-        "menuitem",
-        "menuitemcheckbox",
-        "menuitemradio",
-        "option",
-        "progressbar",
-        "slider",
-        "spinbutton",
-        "status",
-        "alert",
-        "tooltip",
-    ]);
-    const CONTAINER_TAGS_NO_TEXT = new Set([
-        "body",
-        "main",
-        "form",
-        "section",
-        "article",
-        "nav",
-        "table",
-        "tbody",
-        "thead",
-        "tfoot",
-        "tr",
-        "ul",
-        "ol",
-        "fieldset",
-        "dialog",
-    ]);
-    const TEXT_BEARING_TAGS = new Set([
-        "button",
-        "a",
-        "label",
-        "legend",
-        "option",
-        "th",
-        "td",
-        "h1",
-        "h2",
-        "h3",
-        "h4",
-        "h5",
-        "h6",
-        "p",
-        "li",
-        "summary",
-    ]);
-    const SEMANTIC_ATTRS = ATTRS.filter((attr) => attr !== "class");
-    function cleanText(value, max = MAX_TEXT) {
-        const text = (value == null ? "" : String(value)).replace(/\s+/g, " ").trim();
-        if (!text)
-            return undefined;
-        return text.length > max ? text.slice(0, max) + "…" : text;
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  function isElement(x) {
+    return x instanceof Element;
+  }
+
+  function hasHiddenAncestor(el) {
+    for (let n = el; isElement(n); n = n.parentElement) {
+      if (n.hidden) return true;
+      if (n.getAttribute('aria-hidden') === 'true') return true;
+      const st = window.getComputedStyle(n);
+      if (st.display === 'none' || st.visibility === 'hidden' || st.visibility === 'collapse') return true;
     }
-    function cleanAttr(name, value) {
-        let max = MAX_ATTR;
-        if (name === "href")
-            max = MAX_HREF;
-        if (name === "src")
-            max = MAX_SRC;
-        return cleanText(value, max);
+    return false;
+  }
+
+  function isVisible(el) {
+    if (!isElement(el) || hasHiddenAncestor(el)) return false;
+    const rect = el.getBoundingClientRect();
+    const st = window.getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'input' && el.type === 'hidden') return false;
+    return rect.width > 0 || rect.height > 0 || !!cleanText(el.textContent, 20);
+  }
+
+  function textById(id) {
+    const e = document.getElementById(id);
+    if (!e || hasHiddenAncestor(e)) return undefined;
+    return cleanText(e.innerText || e.textContent);
+  }
+
+  function textFromLabelledBy(el) {
+    const ids = cleanText(el.getAttribute('aria-labelledby'), 500);
+    if (!ids) return undefined;
+    const parts = ids.split(/\s+/).map(textById).filter(Boolean);
+    return cleanText(parts.join(' '));
+  }
+
+  function associatedLabelText(el) {
+    const id = el.getAttribute('id');
+    if (id) {
+      const label = document.querySelector(`label[for="${cssEscape(id)}"]`);
+      if (label && !hasHiddenAncestor(label)) {
+        const t = cleanText(label.innerText || label.textContent);
+        if (t) return t;
+      }
     }
-    function visible(el) {
-        if (!el || el.nodeType !== Node.ELEMENT_NODE)
-            return false;
-        if (el.hasAttribute("hidden"))
-            return false;
-        if (el.getAttribute("aria-hidden") === "true")
-            return false;
-        const htmlEl = el;
-        const style = window.getComputedStyle(htmlEl);
-        const rect = htmlEl.getBoundingClientRect();
-        const opacity = Number(style.opacity);
-        return (style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            !Number.isNaN(opacity) &&
-            opacity > 0.01 &&
-            rect.width > 0 &&
-            rect.height > 0);
+
+    const wrapping = el.closest('label');
+    if (wrapping && !hasHiddenAncestor(wrapping)) {
+      const t = cleanText(wrapping.innerText || wrapping.textContent);
+      if (t) return t;
     }
-    function escIdent(value) {
-        if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
-            return CSS.escape(value);
+
+    // Dirty-HTML fallback: <label for="email">Email</label><input name="email">
+    const name = el.getAttribute('name');
+    if (name) {
+      const loose = document.querySelector(`label[for="${cssEscape(name)}"]`);
+      if (loose && !hasHiddenAncestor(loose)) {
+        const t = cleanText(loose.innerText || loose.textContent);
+        if (t) return t;
+      }
+    }
+
+    // Nearby previous label fallback in the same form/section.
+    let prev = el.previousElementSibling;
+    for (let i = 0; prev && i < 3; i++, prev = prev.previousElementSibling) {
+      if (prev.tagName && prev.tagName.toLowerCase() === 'label' && !hasHiddenAncestor(prev)) {
+        const t = cleanText(prev.innerText || prev.textContent);
+        if (t) return t;
+      }
+    }
+
+    return undefined;
+  }
+
+  function ownText(el, limit = cfg.labelLimit) {
+    const parts = [];
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parts.push(node.textContent || '');
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const child = node;
+        const tag = child.tagName.toLowerCase();
+        if (hasHiddenAncestor(child)) continue;
+        if (['svg', 'path', 'use', 'script', 'style'].includes(tag)) continue;
+        if (child.matches && child.matches(ACTION_SELECTOR)) continue;
+        const txt = cleanText(child.innerText || child.textContent, 40);
+        if (txt) parts.push(txt);
+      }
+    }
+    return cleanText(parts.join(' '), limit);
+  }
+
+  function elementLabel(el) {
+    const tag = el.tagName.toLowerCase();
+    const role = el.getAttribute('role');
+
+    return cleanText(
+      el.getAttribute('aria-label') ||
+        textFromLabelledBy(el) ||
+        associatedLabelText(el) ||
+        el.getAttribute('placeholder') ||
+        el.getAttribute('alt') ||
+        el.getAttribute('title') ||
+        (tag === 'input' ? el.getAttribute('name') : undefined) ||
+        ownText(el) ||
+        cleanText(el.innerText || el.textContent) ||
+        el.getAttribute('data-testid') ||
+        el.getAttribute('data-cy') ||
+        el.id ||
+        role ||
+        tag,
+      cfg.labelLimit
+    );
+  }
+
+  function inferKind(el) {
+    const tag = el.tagName.toLowerCase();
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+
+    if (role === 'textbox' || tag === 'textarea' || el.isContentEditable) return 'textbox';
+    if (tag === 'input') {
+      if (type === 'checkbox') return 'checkbox';
+      if (type === 'radio') return 'radio';
+      if (['submit', 'button', 'reset'].includes(type)) return 'button';
+      return 'input';
+    }
+    if (tag === 'select') return 'select';
+    if (tag === 'a' || role === 'link') return 'link';
+    if (role === 'checkbox') return 'checkbox';
+    if (role === 'radio') return 'radio';
+    if (role === 'switch') return 'checkbox';
+    if (role === 'tab') return 'tab';
+    if (role === 'menuitem') return 'menuitem';
+    if (role === 'option') return 'option';
+    return 'button';
+  }
+
+  function isTextEditable(el) {
+    const tag = el.tagName.toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (el.hasAttribute('disabled') || el.hasAttribute('readonly')) return false;
+    if (el.isContentEditable) return true;
+    if (tag === 'textarea') return true;
+    if (tag === 'input') {
+      return !['button', 'submit', 'reset', 'checkbox', 'radio', 'hidden', 'file', 'image', 'range', 'color'].includes(type);
+    }
+    return (el.getAttribute('role') || '').toLowerCase() === 'textbox';
+  }
+
+  function elementState(el, kind) {
+    const s = [];
+    if (document.activeElement === el) s.push('focused');
+    if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') s.push('disabled');
+    if (el.hasAttribute('readonly')) s.push('readonly');
+    if (isTextEditable(el)) s.push('editable');
+    if ((kind === 'checkbox' || kind === 'radio') && (el.checked || el.getAttribute('aria-checked') === 'true')) s.push('checked');
+    if (el.getAttribute('aria-selected') === 'true') s.push('selected');
+    if (el.getAttribute('aria-expanded') === 'true') s.push('expanded');
+    if (el.getAttribute('aria-expanded') === 'false') s.push('collapsed');
+    return s.length ? s : undefined;
+  }
+
+  function regionRole(el) {
+    if (!el) return undefined;
+    const role = el.getAttribute('role');
+    if (role) return role;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'nav') return 'navigation';
+    if (tag === 'main') return 'main';
+    if (tag === 'form') return 'form';
+    if (tag === 'section') return 'section';
+    if (tag === 'article') return 'article';
+    if (tag === 'table') return 'table';
+    return tag;
+  }
+
+  function firstHeadingText(root) {
+    if (!root) return undefined;
+    const h = root.querySelector('h1,h2,h3,h4,h5,h6,[role="heading"]');
+    if (!h || hasHiddenAncestor(h)) return undefined;
+    return cleanText(h.innerText || h.textContent);
+  }
+
+  function regionLabel(el) {
+    if (!el) return undefined;
+    return cleanText(
+      el.getAttribute('aria-label') ||
+        textFromLabelledBy(el) ||
+        firstHeadingText(el) ||
+        (el.tagName.toLowerCase() === 'form' ? el.getAttribute('id') : undefined) ||
+        regionRole(el),
+      cfg.labelLimit
+    );
+  }
+
+  function findRegion(el) {
+    const dialog = el.closest('[role="dialog"],[role="alertdialog"]');
+    if (dialog && isVisible(dialog)) return dialog;
+
+    let cur = el.parentElement;
+    while (cur && cur !== document.body && cur !== document.documentElement) {
+      if (cur.matches(REGION_SELECTOR) && isVisible(cur)) return cur;
+      cur = cur.parentElement;
+    }
+    return undefined;
+  }
+
+  function groupType(el) {
+    if (!el) return undefined;
+    const tag = el.tagName.toLowerCase();
+    const role = el.getAttribute('role');
+    if (tag === 'tr' || role === 'row') return 'row';
+    if (tag === 'form' || role === 'form') return 'form';
+    if (tag === 'li' || role === 'listitem') return 'listitem';
+    if (tag === 'article') return 'card';
+    if (tag === 'section') return 'section';
+    if (role === 'dialog' || role === 'alertdialog') return 'dialog';
+    if (role === 'group' || role === 'region') return 'section';
+    return 'section';
+  }
+
+  function groupScore(ancestor, action) {
+    const tag = ancestor.tagName.toLowerCase();
+    const role = (ancestor.getAttribute('role') || '').toLowerCase();
+    let s = 0;
+    if (['tr', 'li', 'form', 'article', 'section', 'fieldset'].includes(tag)) s += 35;
+    if (['row', 'listitem', 'form', 'group', 'region', 'dialog', 'alertdialog'].includes(role)) s += 35;
+    if (ancestor.hasAttribute('aria-label') || ancestor.hasAttribute('aria-labelledby')) s += 20;
+    if (firstHeadingText(ancestor)) s += 15;
+    if (tag === 'body' || tag === 'html' || tag === 'main') s -= 50;
+
+    const rect = ancestor.getBoundingClientRect();
+    const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+    const area = rect.width * rect.height;
+    if (area > viewportArea * 0.75) s -= 35;
+
+    let d = 0;
+    for (let n = action.parentElement; n && n !== ancestor; n = n.parentElement) d++;
+    s -= d * 4;
+    return s;
+  }
+
+  function findGroup(el) {
+    let best = undefined;
+    let bestScore = -Infinity;
+    let cur = el.parentElement;
+    let depth = 0;
+    while (cur && cur !== document.body && cur !== document.documentElement && depth < 8) {
+      if (isVisible(cur)) {
+        const sc = groupScore(cur, el);
+        if (sc > bestScore) {
+          best = cur;
+          bestScore = sc;
         }
-        return String(value).replace(/([^\w-])/g, "\\$1");
+      }
+      cur = cur.parentElement;
+      depth++;
     }
-    function escAttrValue(value) {
-        return String(value)
-            .replace(/\\/g, "\\\\")
-            .replace(/"/g, '\\"')
-            .replace(/\n/g, "\\A ")
-            .replace(/\r/g, "\\D ");
+    return bestScore >= 25 ? best : undefined;
+  }
+
+  function directDescriptiveText(root, excludeEl) {
+    const parts = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (excludeEl && (parent === excludeEl || excludeEl.contains(parent))) return NodeFilter.FILTER_REJECT;
+        if (parent.closest(ACTION_SELECTOR)) return NodeFilter.FILTER_REJECT;
+        if (hasHiddenAncestor(parent)) return NodeFilter.FILTER_REJECT;
+        const tag = parent.tagName.toLowerCase();
+        if (['script', 'style', 'svg', 'path', 'use'].includes(tag)) return NodeFilter.FILTER_REJECT;
+        const text = cleanText(node.textContent, 60);
+        return text ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+
+    while (parts.join(' ').length < cfg.contextLimit) {
+      const n = walker.nextNode();
+      if (!n) break;
+      const t = cleanText(n.textContent, 60);
+      if (t && !parts.includes(t)) parts.push(t);
     }
-    function attrSel(tag, attr, value) {
-        return `${tag}[${attr}="${escAttrValue(value)}"]`;
+    return cleanText(parts.join(' '), cfg.contextLimit);
+  }
+
+  function formFields(form) {
+    const controls = Array.from(form.querySelectorAll('input,textarea,select,[role="textbox"],[contenteditable="true"]'));
+    const labels = [];
+    for (const c of controls) {
+      if (!isVisible(c)) continue;
+      const kind = inferKind(c);
+      if (!['input', 'textbox', 'select', 'checkbox', 'radio'].includes(kind)) continue;
+      const l = elementLabel(c);
+      if (l && !labels.includes(l)) labels.push(l);
+      if (labels.length >= 8) break;
     }
-    function anyAttrSel(attr, value) {
-        return `[${attr}="${escAttrValue(value)}"]`;
+    return labels;
+  }
+
+  function rowContext(row, action) {
+    const cells = Array.from(row.children).filter((c) => ['td', 'th'].includes(c.tagName.toLowerCase()));
+    const pieces = [];
+    for (const cell of cells) {
+      if (action && cell.contains(action)) continue;
+      const t = directDescriptiveText(cell, action) || cleanText(cell.innerText || cell.textContent, 80);
+      if (t && !pieces.includes(t)) pieces.push(t);
+      if (pieces.join(' | ').length >= cfg.contextLimit) break;
     }
-    function roleAttrSel(role, attr, value) {
-        return `[role="${escAttrValue(role)}"][${attr}="${escAttrValue(value)}"]`;
+    return cleanText(pieces.join(' | '), cfg.contextLimit);
+  }
+
+  function summarizeGroup(group, action) {
+    if (!group) return undefined;
+    const type = groupType(group);
+    const label = cleanText(
+      group.getAttribute('aria-label') ||
+        textFromLabelledBy(group) ||
+        firstHeadingText(group) ||
+        (group.tagName.toLowerCase() === 'form' ? group.getAttribute('id') : undefined),
+      cfg.labelLimit
+    );
+
+    let text;
+    if (type === 'form') {
+      const fields = formFields(group);
+      text = fields.length ? cleanText('Fields: ' + fields.join(', '), cfg.contextLimit) : undefined;
+    } else if (type === 'row') {
+      text = rowContext(group, action);
+    } else if (type === 'dialog') {
+      text = directDescriptiveText(group, action);
+    } else {
+      text = directDescriptiveText(group, action);
     }
-    function queryCount(selector) {
+
+    if (text && label && text === label) text = undefined;
+
+    const out = { type };
+    if (label) out.label = label;
+    if (text) out.text = text;
+    return out.label || out.text ? out : undefined;
+  }
+
+  function isStableId(id) {
+    if (!id) return false;
+    if (id.length > 80) return false;
+    if (/^radix-|^headlessui-|^react-aria-|^:r/i.test(id)) return false;
+    return true;
+  }
+
+  function isUniqueSelector(sel) {
+    try {
+      return document.querySelectorAll(sel).length === 1;
+    } catch {
+      return false;
+    }
+  }
+
+  function selectorFor(el) {
+    const tag = el.tagName.toLowerCase();
+
+    for (const attr of ['data-testid', 'data-cy', 'data-test', 'aria-label']) {
+      const v = el.getAttribute(attr);
+      if (v) {
+        const sel = `${tag}[${attr}="${CSS.escape(v)}"]`;
+        if (isUniqueSelector(sel)) return sel;
+      }
+    }
+
+    const id = el.getAttribute('id');
+    if (isStableId(id)) {
+      const sel = `${tag}#${CSS.escape(id)}`;
+      if (isUniqueSelector(sel)) return sel;
+      const idSel = `#${CSS.escape(id)}`;
+      if (isUniqueSelector(idSel)) return idSel;
+    }
+
+    const name = el.getAttribute('name');
+    if (name && ['input', 'textarea', 'select'].includes(tag)) {
+      const sel = `${tag}[name="${CSS.escape(name)}"]`;
+      if (isUniqueSelector(sel)) return sel;
+    }
+
+    if (tag === 'button') {
+      const type = el.getAttribute('type');
+      const form = el.closest('form');
+      if (type && form && isStableId(form.id)) {
+        const sel = `form#${CSS.escape(form.id)} button[type="${CSS.escape(type)}"]`;
+        if (isUniqueSelector(sel)) return sel;
+      }
+    }
+
+    const region = findRegion(el);
+    if (region) {
+      const rLabel = region.getAttribute('aria-label');
+      const rTag = region.tagName.toLowerCase();
+      if (rLabel) {
+        const siblings = Array.from(region.querySelectorAll(tag)).filter((x) => isVisible(x));
+        const idx = siblings.indexOf(el) + 1;
+        const scoped = `${rTag}[aria-label="${CSS.escape(rLabel)}"] ${tag}:nth-of-type(${idx || 1})`;
         try {
-            return document.querySelectorAll(selector).length;
-        }
-        catch {
-            return -1;
-        }
+          if (document.querySelector(scoped) === el) return scoped;
+        } catch {}
+      }
     }
-    function unique(selector) {
-        return queryCount(selector) === 1;
+
+    const parts = [];
+    let cur = el;
+    while (cur && cur !== document.documentElement && parts.length < 5) {
+      const t = cur.tagName.toLowerCase();
+      const cid = cur.getAttribute('id');
+      if (isStableId(cid)) {
+        parts.unshift(`${t}#${CSS.escape(cid)}`);
+        break;
+      }
+      const parent = cur.parentElement;
+      if (!parent) break;
+      const same = Array.from(parent.children).filter((c) => c.tagName === cur.tagName);
+      const nth = same.indexOf(cur) + 1;
+      parts.unshift(`${t}:nth-of-type(${nth})`);
+      cur = parent;
     }
-    function pushCandidate(list, seen, selector, reason) {
-        if (!selector || seen.has(selector))
-            return;
-        seen.add(selector);
-        list.push({ selector, reason, count: queryCount(selector) });
-    }
-    function getSelectorCandidates(el) {
-        const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute("role");
-        const candidates = [];
-        const seen = new Set();
-        for (const attr of ["data-testid", "data-cy", "data-test"]) {
-            const value = el.getAttribute(attr);
-            if (value) {
-                pushCandidate(candidates, seen, attrSel(tag, attr, value), "test_attr_tag");
-                pushCandidate(candidates, seen, anyAttrSel(attr, value), "test_attr_any");
-            }
-        }
-        const name = el.getAttribute("name");
-        if (name) {
-            pushCandidate(candidates, seen, attrSel(tag, "name", name), "name_tag");
-            const type = el.getAttribute("type");
-            if (type) {
-                pushCandidate(candidates, seen, `${tag}[name="${escAttrValue(name)}"][type="${escAttrValue(type)}"]`, "name_type");
-            }
-        }
-        const aria = el.getAttribute("aria-label");
-        if (aria) {
-            if (role) {
-                pushCandidate(candidates, seen, roleAttrSel(role, "aria-label", aria), "role_aria_label");
-            }
-            pushCandidate(candidates, seen, attrSel(tag, "aria-label", aria), "aria_label_tag");
-            pushCandidate(candidates, seen, anyAttrSel("aria-label", aria), "aria_label_any");
-        }
-        const labelledby = el.getAttribute("aria-labelledby");
-        if (labelledby) {
-            if (role) {
-                pushCandidate(candidates, seen, roleAttrSel(role, "aria-labelledby", labelledby), "role_aria_labelledby");
-            }
-            pushCandidate(candidates, seen, attrSel(tag, "aria-labelledby", labelledby), "aria_labelledby_tag");
-        }
-        const placeholder = el.getAttribute("placeholder");
-        if (placeholder) {
-            pushCandidate(candidates, seen, attrSel(tag, "placeholder", placeholder), "placeholder_tag");
-        }
-        const title = el.getAttribute("title");
-        if (title) {
-            pushCandidate(candidates, seen, attrSel(tag, "title", title), "title_tag");
-        }
-        const href = el.getAttribute("href");
-        if (href && tag === "a") {
-            pushCandidate(candidates, seen, attrSel(tag, "href", href), "href_exact");
-        }
-        const id = el.getAttribute("id");
-        if (id) {
-            pushCandidate(candidates, seen, `${tag}#${escIdent(id)}`, "id_tag");
-            pushCandidate(candidates, seen, `#${escIdent(id)}`, "id_any");
-        }
-        const type = el.getAttribute("type");
-        if (type && ["input", "button"].includes(tag)) {
-            pushCandidate(candidates, seen, attrSel(tag, "type", type), "type_tag");
-        }
-        return candidates;
-    }
-    function simplePart(el) {
-        const tag = el.tagName.toLowerCase();
-        const id = el.getAttribute("id");
-        if (id)
-            return `${tag}#${escIdent(id)}`;
-        const role = el.getAttribute("role");
-        const aria = el.getAttribute("aria-label");
-        if (role && aria) {
-            return `${tag}[role="${escAttrValue(role)}"][aria-label="${escAttrValue(aria)}"]`;
-        }
-        const name = el.getAttribute("name");
-        if (name)
-            return `${tag}[name="${escAttrValue(name)}"]`;
-        const parent = el.parentElement;
-        if (!parent)
-            return tag;
-        const same = Array.from(parent.children).filter((child) => child.tagName.toLowerCase() === tag);
-        if (same.length === 1)
-            return tag;
-        return `${tag}:nth-of-type(${same.indexOf(el) + 1})`;
-    }
-    function pathSelector(el) {
-        const parts = [];
-        let current = el;
-        while (current &&
-            current.nodeType === Node.ELEMENT_NODE &&
-            current !== document.documentElement) {
-            parts.unshift(simplePart(current));
-            const selector = parts.join(" > ");
-            if (unique(selector))
-                return { selector, reason: "path_unique" };
-            if (current === document.body)
-                break;
-            current = current.parentElement;
-        }
-        const finalSelector = parts.join(" > ");
-        if (finalSelector && unique(finalSelector)) {
-            return { selector: finalSelector, reason: "path_full_unique" };
-        }
-        return { selector: null, reason: "not_unique" };
-    }
-    function selectorInfo(el) {
-        const candidates = getSelectorCandidates(el);
-        for (const item of candidates) {
-            if (item.count === 1) {
-                return {
-                    selector: item.selector,
-                    selectorStatus: "unique",
-                    selectorReason: item.reason,
-                };
-            }
-        }
-        const path = pathSelector(el);
-        if (path.selector) {
-            return {
-                selector: path.selector,
-                selectorStatus: "unique",
-                selectorReason: path.reason,
-            };
-        }
-        const compactCandidates = candidates
-            .filter((item) => item.count > 1)
-            .slice(0, 5)
-            .map((item) => ({
-            selector: item.selector,
-            count: item.count,
-            reason: item.reason,
-        }));
-        return {
-            selectorStatus: "not_unique",
-            selectorReason: "all_candidates_not_unique",
-            selectorCandidates: compactCandidates.length ? compactCandidates : undefined,
-        };
-    }
-    function directNodeText(el) {
-        return cleanText(Array.from(el.childNodes)
-            .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => node.textContent || "")
-            .join(" "));
-    }
-    function hasSemanticAttr(el) {
-        return SEMANTIC_ATTRS.some((attr) => cleanText(el.getAttribute(attr)));
-    }
-    function interactive(el) {
-        const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute("role");
-        return (["button", "a", "input", "textarea", "select", "option", "label", "summary"].includes(tag) ||
-            Boolean(role && KEEP_ROLES.has(role)) ||
-            el.hasAttribute("onclick") ||
-            el.hasAttribute("tabindex") ||
-            el.getAttribute("contenteditable") === "true");
-    }
-    function isFocused(el) {
-        return Boolean(activeElement && el === activeElement);
-    }
-    function hasFocusedDescendant(el) {
-        return Boolean(activeElement && el !== activeElement && el.contains(activeElement));
-    }
-    function isEditable(el) {
-        const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute("role");
-        if (el.getAttribute("contenteditable") === "true")
-            return true;
-        if (tag === "textarea")
-            return true;
-        if (tag === "input") {
-            const type = (el.getAttribute("type") || "text").toLowerCase();
-            return TEXT_INPUT_TYPES.has(type);
-        }
-        return role === "textbox" || role === "searchbox" || role === "combobox";
-    }
-    function canReceiveText(el) {
-        const formEl = el;
-        if ("disabled" in formEl && formEl.disabled === true)
-            return false;
-        if ("readOnly" in formEl && formEl.readOnly === true)
-            return false;
-        return isEditable(el);
-    }
-    function getElementValue(el) {
-        const tag = el.tagName.toLowerCase();
-        if (tag === "input" || tag === "textarea" || tag === "select") {
-            return cleanAttr("value", el.value);
-        }
-        if (el.getAttribute("contenteditable") === "true") {
-            return cleanText(el.innerText, MAX_ATTR);
-        }
-        return cleanAttr("value", el.getAttribute("value"));
-    }
-    function canPressEnter(el) {
-        const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute("role");
-        if (canReceiveText(el))
-            return true;
-        return tag === "button" || tag === "a" || role === "button" || role === "link" || role === "menuitem" || role === "option";
-    }
-    function addFocusState(output, el) {
-        if (isFocused(el))
-            output.focused = true;
-        if (hasFocusedDescendant(el))
-            output.focusWithin = true;
-        if (isEditable(el))
-            output.editable = true;
-        if (canReceiveText(el))
-            output.canReceiveText = true;
-        if (canPressEnter(el))
-            output.canPressEnter = true;
-        const value = getElementValue(el);
-        if (value) {
-            output.value = value;
-            output.hasValue = true;
-        }
-        if (isFocused(el) && "selectionStart" in el && typeof el.selectionStart === "number") {
-            output.selectionStart = el.selectionStart;
-        }
-        if (isFocused(el) && "selectionEnd" in el && typeof el.selectionEnd === "number") {
-            output.selectionEnd = el.selectionEnd;
-        }
-    }
-    function isImportantChild(el) {
-        const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute("role");
-        return (interactive(el) ||
-            KEEP_TAGS.has(tag) ||
-            Boolean(role && KEEP_ROLES.has(role)) ||
-            hasSemanticAttr(el));
-    }
-    function childSemanticText(el) {
-        const parts = [];
-        for (const child of Array.from(el.children)) {
-            if (!visible(child))
-                continue;
-            if (!isImportantChild(child))
-                continue;
-            const text = cleanText(child.innerText);
-            if (text)
-                parts.push(text);
-        }
-        return cleanText(parts.join(" "));
-    }
-    function directText(el) {
-        const tag = el.tagName.toLowerCase();
-        if (CONTAINER_TAGS_NO_TEXT.has(tag)) {
-            return undefined;
-        }
-        const direct = directNodeText(el);
-        if (TEXT_BEARING_TAGS.has(tag)) {
-            const full = cleanText(el.innerText);
-            const childText = childSemanticText(el);
-            if (full && childText && full === childText) {
-                return direct;
-            }
-            return full;
-        }
-        return direct;
-    }
-    function labelTextFor(el) {
-        const id = el.getAttribute("id");
-        if (id) {
-            const label = document.querySelector(`label[for="${escAttrValue(id)}"]`);
-            if (label) {
-                const text = cleanText(label.innerText);
-                if (text)
-                    return text;
-            }
-        }
-        const parentLabel = el.closest("label");
-        if (parentLabel) {
-            const text = cleanText(parentLabel.innerText);
-            if (text)
-                return text;
-        }
-        const ariaLabel = cleanText(el.getAttribute("aria-label"));
-        if (ariaLabel)
-            return ariaLabel;
-        const labelledby = el.getAttribute("aria-labelledby");
-        if (labelledby) {
-            const parts = labelledby
-                .split(/\s+/)
-                .map((labelId) => document.getElementById(labelId))
-                .filter((node) => Boolean(node))
-                .map((node) => cleanText(node.innerText))
-                .filter((text) => Boolean(text));
-            if (parts.length)
-                return parts.join(" ");
-        }
-        return undefined;
-    }
-    function ownTextUseful(el) {
-        return Boolean(directText(el));
-    }
-    function shouldKeep(el) {
-        const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute("role");
-        if (["script", "style", "noscript", "template", "meta", "link"].includes(tag)) {
-            return false;
-        }
-        if (!visible(el))
-            return false;
-        return (interactive(el) ||
-            KEEP_TAGS.has(tag) ||
-            Boolean(role && KEEP_ROLES.has(role)) ||
-            hasSemanticAttr(el) ||
-            ownTextUseful(el));
-    }
-    function childKey(node) {
-        return [
-            node.tag || "",
-            node.role || "",
-            node.name || "",
-            node.type || "",
-            node.text || "",
-            node.labelText || "",
-            node["aria-label"] || "",
-            node.href || "",
-            node.selector || "",
-        ].join("|");
-    }
-    function dedupeChildren(children) {
-        const output = [];
-        const seen = new Set();
-        for (const child of children) {
-            const key = childKey(child);
-            if (seen.has(key))
-                continue;
-            seen.add(key);
-            output.push(child);
-            if (output.length >= MAX_CHILDREN_PER_NODE)
-                break;
-        }
-        return output;
-    }
-    function build(el) {
-        if (emittedNodes >= MAX_TOTAL_NODES)
-            return null;
-        const children = [];
-        for (const child of Array.from(el.children)) {
-            const node = build(child);
-            if (!node)
-                continue;
-            if (node.tag === "__fragment__") {
-                children.push(...(node.children || []));
-            }
-            else {
-                children.push(node);
-            }
-        }
-        const keep = shouldKeep(el);
-        if (!keep && children.length === 0)
-            return null;
-        if (!keep) {
-            return {
-                tag: "__fragment__",
-                children: dedupeChildren(children),
-            };
-        }
-        emittedNodes += 1;
-        const tag = el.tagName.toLowerCase();
-        const sel = selectorInfo(el);
-        const output = {
-            tag,
-            visible: true,
-            selectorStatus: sel.selectorStatus,
-        };
-        if (sel.selector)
-            output.selector = sel.selector;
-        if (sel.selectorReason)
-            output.selectorReason = sel.selectorReason;
-        if (sel.selectorCandidates)
-            output.selectorCandidates = sel.selectorCandidates;
-        for (const attr of ATTRS) {
-            const value = cleanAttr(attr, el.getAttribute(attr));
-            if (value) {
-                output[attr] = value;
-            }
-        }
-        addFocusState(output, el);
-        if (output.focused || output.focusWithin) {
-            activePath.push(output);
-        }
-        const text = directText(el);
-        if (text)
-            output.text = text;
-        if (["input", "textarea", "select"].includes(tag)) {
-            const labelText = labelTextFor(el);
-            if (labelText)
-                output.labelText = labelText;
-        }
-        const formEl = el;
-        if ("disabled" in formEl && formEl.disabled === true)
-            output.disabled = true;
-        if ("readOnly" in formEl && formEl.readOnly === true)
-            output.readonly = true;
-        if ("checked" in formEl && formEl.checked === true)
-            output.checked = true;
-        if (tag === "option" && "selected" in formEl && formEl.selected === true)
-            output.selected = true;
-        const finalChildren = dedupeChildren(children);
-        if (finalChildren.length)
-            output.children = finalChildren;
-        return output;
-    }
-    const body = build(document.body);
-    return {
-        tag: "page",
-        title: document.title,
-        href: window.location.href,
-        truncated: emittedNodes >= MAX_TOTAL_NODES,
-        activePath: activePath.length ? activePath.slice().reverse() : undefined,
-        children: body?.children ?? [],
+    return parts.join(' > ');
+  }
+
+  const regionMap = new Map();
+  const regions = [];
+
+  function regionIdFor(el) {
+    const region = findRegion(el);
+    if (!region) return undefined;
+    if (regionMap.has(region)) return regionMap.get(region);
+    if (regions.length >= cfg.maxRegions) return undefined;
+
+    const id = `r${regions.length + 1}`;
+    regionMap.set(region, id);
+    regions.push({
+      id,
+      role: regionRole(region),
+      label: regionLabel(region),
+    });
+    return id;
+  }
+
+  function usefulValue(el, kind) {
+    if (!('value' in el)) return undefined;
+    const value = cleanText(el.value, 120);
+    if (!value) return undefined;
+    if ((kind === 'checkbox' || kind === 'radio') && value === 'on') return undefined;
+    if (kind === 'button') return undefined;
+    return value;
+  }
+
+  const activeDialog = Array.from(document.querySelectorAll('[role="dialog"],[role="alertdialog"]')).find(isVisible);
+
+  function actionScore(item, el) {
+    let s = 0;
+    if (activeDialog) s += activeDialog.contains(el) ? 300 : -100;
+    if (document.activeElement === el) s += 150;
+    if (item.state && item.state.includes('editable')) s += 80;
+    if (item.label) s += 35;
+    if (item.region) s += 15;
+    if (item.group && (item.group.label || item.group.text)) s += 15;
+    if (item.state && item.state.includes('disabled')) s -= 80;
+
+    const txt = `${item.label || ''} ${item.group?.label || ''}`.toLowerCase();
+    if (/terms|privacy|cookie|learn more/.test(txt)) s -= 40;
+    return s;
+  }
+
+  const raw = Array.from(document.querySelectorAll(ACTION_SELECTOR)).filter((el) => {
+    if (!isVisible(el)) return false;
+    const tag = el.tagName.toLowerCase();
+    if (['svg', 'path', 'use'].includes(tag)) return false;
+    const parentAction = el.parentElement && el.parentElement.closest(ACTION_SELECTOR);
+    if (parentAction && parentAction !== el && parentAction.contains(el)) return false;
+    return true;
+  });
+
+  const actions = [];
+  const seen = new Set();
+
+  for (const el of raw) {
+    const kind = inferKind(el);
+    const label = elementLabel(el);
+    const selector = selectorFor(el);
+    if (!selector) continue;
+
+    const region = regionIdFor(el);
+    const group = summarizeGroup(findGroup(el), el);
+    const state = elementState(el, kind);
+    const value = usefulValue(el, kind);
+
+    const key = `${kind}|${selector}|${label || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const item = { id: '', kind };
+    if (label) item.label = label;
+    if (value) item.value = value;
+    item.selector = selector;
+    if (region) item.region = region;
+    if (group) item.group = group;
+    if (state) item.state = state;
+
+    item._score = actionScore(item, el);
+    actions.push(item);
+  }
+
+  actions.sort((a, b) => b._score - a._score);
+
+  const limited = actions.slice(0, cfg.maxActions).map((a, i) => {
+    const out = { ...a, id: `a${i + 1}` };
+    delete out._score;
+    return out;
+  });
+
+  // Keep only used regions.
+  const usedRegionIds = new Set(limited.map((a) => a.region).filter(Boolean));
+  const usedRegions = regions.filter((r) => usedRegionIds.has(r.id));
+
+  const focus = limited.find((a) => Array.isArray(a.state) && a.state.includes('focused'));
+
+  let result = {
+    page: {
+      title: document.title || undefined,
+      url: location.href,
+    },
+    regions: usedRegions,
+    actions: limited,
+    stats: {
+      rawCandidates: raw.length,
+      emittedActions: limited.length,
+      emittedRegions: usedRegions.length,
+    },
+  };
+
+  if (focus) {
+    result.focus = {
+      actionId: focus.id,
+      label: focus.label,
+      selector: focus.selector,
     };
+  }
+
+  // Byte budget fallback: remove non-essential verbose context first.
+  function byteLen(obj) {
+    return new Blob([JSON.stringify(obj)]).size;
+  }
+
+  if (byteLen(result) > cfg.maxBytes) {
+    result = JSON.parse(JSON.stringify(result));
+    for (const a of result.actions) {
+      if (a.group && a.group.text) delete a.group.text;
+    }
+  }
+
+  if (byteLen(result) > cfg.maxBytes) {
+    result.actions = result.actions.slice(0, Math.max(10, Math.floor(cfg.maxActions / 2)));
+    result.stats.emittedActions = result.actions.length;
+  }
+
+  return result;
 }
+
+export default makeSemanticUiTree;

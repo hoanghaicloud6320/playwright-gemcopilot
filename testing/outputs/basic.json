@@ -1,52 +1,47 @@
 {
-  "tag": "page",
-  "title": "basic.html",
-  "href": "about:blank",
-  "children": [
+  "page": {
+    "url": "file:///C:/Users/thuanvl/Desktop/codes/playwright-gemcopilot/testing/cases/basic.html"
+  },
+  "regions": [
     {
-      "tag": "form",
-      "selector": "form#login",
-      "visible": true,
-      "id": "login",
-      "aria-label": "Login",
-      "children": [
-        {
-          "tag": "label",
-          "selector": "form > label:nth-of-type(1)",
-          "visible": true,
-          "for": "email",
-          "text": "Email"
-        },
-        {
-          "tag": "input",
-          "selector": "input[name=\"email\"]",
-          "visible": true,
-          "name": "email",
-          "type": "email",
-          "placeholder": "Email"
-        },
-        {
-          "tag": "label",
-          "selector": "form > label:nth-of-type(2)",
-          "visible": true,
-          "for": "password",
-          "text": "Password"
-        },
-        {
-          "tag": "input",
-          "selector": "input[name=\"password\"]",
-          "visible": true,
-          "name": "password",
-          "type": "password"
-        },
-        {
-          "tag": "button",
-          "selector": "button[type=\"submit\"]",
-          "visible": true,
-          "type": "submit",
-          "text": "Login"
-        }
-      ]
+      "id": "r1",
+      "role": "form",
+      "name": "Login"
     }
-  ]
+  ],
+  "actions": [
+    {
+      "role": "textbox",
+      "name": "Email",
+      "selector": "input[name=\"email\"]",
+      "region": "r1",
+      "state": [
+        "editable"
+      ],
+      "id": "a1"
+    },
+    {
+      "role": "textbox",
+      "name": "Password",
+      "selector": "input[name=\"password\"]",
+      "region": "r1",
+      "state": [
+        "editable"
+      ],
+      "id": "a2"
+    },
+    {
+      "role": "button",
+      "name": "Login",
+      "selector": "form#login button[type=\"submit\"]",
+      "region": "r1",
+      "id": "a3"
+    }
+  ],
+  "stats": {
+    "rawCandidates": 3,
+    "emittedActions": 3,
+    "emittedRegions": 1,
+    "bytes": 586
+  }
 }

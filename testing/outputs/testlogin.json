@@ -1,0 +1,145 @@
+{
+  "page": {
+    "url": "file:///C:/Users/thuanvl/Desktop/codes/playwright-gemcopilot/testing/cases/testlogin.html"
+  },
+  "regions": [
+    {
+      "id": "r1",
+      "role": "document"
+    },
+    {
+      "id": "r2",
+      "role": "navigation",
+      "name": "Navigation"
+    },
+    {
+      "id": "r3",
+      "role": "banner"
+    },
+    {
+      "id": "r4",
+      "role": "main",
+      "name": "Test login"
+    },
+    {
+      "id": "r5",
+      "role": "contentinfo"
+    }
+  ],
+  "actions": [
+    {
+      "role": "textbox",
+      "name": "Username",
+      "selector": "input#username",
+      "region": "r4",
+      "state": [
+        "editable"
+      ],
+      "id": "a1"
+    },
+    {
+      "role": "link",
+      "name": "Press \"Enter\" to skip to content",
+      "selector": "body#modern-store-modified > a:nth-of-type(1)",
+      "region": "r1",
+      "id": "a2"
+    },
+    {
+      "role": "link",
+      "name": "Home",
+      "selector": "li#menu-item-43 a",
+      "region": "r2",
+      "context": {
+        "role": "listitem"
+      },
+      "id": "a3"
+    },
+    {
+      "role": "link",
+      "name": "Practice",
+      "selector": "li#menu-item-20 a",
+      "region": "r2",
+      "context": {
+        "role": "listitem"
+      },
+      "id": "a4"
+    },
+    {
+      "role": "link",
+      "name": "Courses",
+      "selector": "li#menu-item-21 a",
+      "region": "r2",
+      "context": {
+        "role": "listitem"
+      },
+      "id": "a5"
+    },
+    {
+      "role": "link",
+      "name": "Blog",
+      "selector": "li#menu-item-19 a",
+      "region": "r2",
+      "context": {
+        "role": "listitem"
+      },
+      "id": "a6"
+    },
+    {
+      "role": "link",
+      "name": "Contact",
+      "selector": "li#menu-item-18 a",
+      "region": "r2",
+      "context": {
+        "role": "listitem"
+      },
+      "id": "a7"
+    },
+    {
+      "role": "button",
+      "name": "toggle-navigation",
+      "selector": "button#toggle-navigation",
+      "region": "r3",
+      "state": [
+        "collapsed"
+      ],
+      "id": "a8"
+    },
+    {
+      "role": "textbox",
+      "name": "Password",
+      "selector": "input#password",
+      "region": "r4",
+      "state": [
+        "editable"
+      ],
+      "id": "a9"
+    },
+    {
+      "role": "button",
+      "name": "Submit",
+      "selector": "button#submit",
+      "region": "r4",
+      "id": "a10"
+    },
+    {
+      "role": "link",
+      "name": "Practice Test Automation.",
+      "selector": "footer#site-footer a:nth-of-type(1)",
+      "region": "r5",
+      "id": "a11"
+    },
+    {
+      "role": "link",
+      "name": "Privacy Policy",
+      "selector": "footer#site-footer a:nth-of-type(2)",
+      "region": "r5",
+      "id": "a12"
+    }
+  ],
+  "stats": {
+    "rawCandidates": 14,
+    "emittedActions": 12,
+    "emittedRegions": 5,
+    "bytes": 1804
+  }
+}

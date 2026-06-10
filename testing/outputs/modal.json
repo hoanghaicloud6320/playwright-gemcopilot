@@ -1,42 +1,35 @@
 {
-  "tag": "page",
-  "title": "modal.html",
-  "href": "about:blank",
-  "children": [
+  "page": {
+    "url": "file:///C:/Users/thuanvl/Desktop/codes/playwright-gemcopilot/testing/cases/modal.html"
+  },
+  "regions": [
     {
-      "tag": "div",
-      "selector": "div[aria-label=\"Delete\\ project\"]",
-      "visible": true,
+      "id": "r1",
       "role": "dialog",
-      "aria-label": "Delete project",
-      "children": [
-        {
-          "tag": "h2",
-          "selector": "div > div > h2",
-          "visible": true,
-          "text": "Delete project?"
-        },
-        {
-          "tag": "p",
-          "selector": "div > div > p",
-          "visible": true,
-          "text": "This action cannot be undone."
-        },
-        {
-          "tag": "button",
-          "selector": "div > div > button:nth-of-type(1)",
-          "visible": true,
-          "text": "Cancel"
-        },
-        {
-          "tag": "button",
-          "selector": "button[data-cy=\"confirm-delete\"]",
-          "visible": true,
-          "class": "danger",
-          "data-cy": "confirm-delete",
-          "text": "Delete"
-        }
-      ]
+      "name": "Delete project",
+      "description": "Delete project? This action cannot be undone."
     }
-  ]
+  ],
+  "actions": [
+    {
+      "role": "button",
+      "name": "Cancel",
+      "selector": "div[role=\"dialog\"][aria-label=\"Delete project\"] button:nth-of-type(1)",
+      "region": "r1",
+      "id": "a1"
+    },
+    {
+      "role": "button",
+      "name": "Delete",
+      "selector": "button[data-cy=\"confirm-delete\"]",
+      "region": "r1",
+      "id": "a2"
+    }
+  ],
+  "stats": {
+    "rawCandidates": 2,
+    "emittedActions": 2,
+    "emittedRegions": 1,
+    "bytes": 571
+  }
 }
