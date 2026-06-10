@@ -72,13 +72,14 @@ export class Brain implements IBrain {
             ).join("\n");
 
             const promptText = `
-                lưu ý:
+                HƯỚNG DẪN:
                  - nếu nhiệm vụ đã hoàn thành thì phản hồi mà ko gọi tool để kết thúc vòng lặp này!
                  - các phản hồi khi đang trong vòng lặp vẫn có thể phản hồi text nhưng cần kèm function calling để giữ cho vòng lặp sống!
                  - các selector cho các tool **nên** sử dụng các selector gắn sẵn trong SemanticUItree (runtime đã tính sẵn selector để unique nhất có thể)
+                 - lịch sử các hành động cung cấp cho bạn 1 góc nhìn về quá trình thực hiện nhiệm vụ 1 cách liền mạch (bạn đóng vai như 1 statemachine)
 
                 Nhiệm vụ: \`${prompt}\`.
-                Lịch sử hành động gần đây (tối đa 20):
+                Lịch sử các hành động gần nhất của bạn (tối đa 20):
                 ${historyText || "Chưa có hành động nào."}
 
                 Cấu trúc trang rút gọn (Simplified DOM/SemanticUItree):
