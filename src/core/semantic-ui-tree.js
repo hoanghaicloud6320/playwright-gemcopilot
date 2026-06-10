@@ -408,86 +408,383 @@ export function makeSemanticUiTree(options = {}) {
     return out.label || out.text ? out : undefined;
   }
 
+  // ---------------------------------------------------------------------------
+  // Selector generation policy:
+  // - Computed ONLY from the original DOM element/ancestors.
+  // - Does NOT depend on semantic UI tree, region ids, action ids, or emitted order.
+  // - Every emitted action gets a selector.
+  // - Preferred selectors use stable DOM anchors and stable attributes.
+  // - nth-of-type is the final fallback only, and when a path is needed, every
+  //   ancestor segment first tries stable attributes before nth-of-type.
+  // - Final selector is always proven exact at extraction time:
+  //     querySelectorAll(selector).length === 1 && querySelector(selector) === el
+  // ---------------------------------------------------------------------------
+
+  function cssString(value) {
+    // Attribute values are CSS strings, not CSS identifiers.
+    return JSON.stringify(String(value));
+  }
+
+  function cssIdent(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(String(value));
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  function attr(name, value) {
+    return `[${name}=${cssString(value)}]`;
+  }
+
+  function selectorNodes(sel) {
+    try {
+      return Array.from(document.querySelectorAll(sel));
+    } catch {
+      return [];
+    }
+  }
+
+  function selectorHitsExactly(sel, el) {
+    const nodes = selectorNodes(sel);
+    return nodes.length === 1 && nodes[0] === el;
+  }
+
+  function addCandidate(list, sel, score) {
+    if (!sel || list.some((x) => x.sel === sel)) return;
+    list.push({ sel, score });
+  }
+
   function isStableId(id) {
     if (!id) return false;
     if (id.length > 80) return false;
-    if (/^radix-|^headlessui-|^react-aria-|^:r/i.test(id)) return false;
+    if (/^(:r|radix-|headlessui-|react-aria-|ember\d+|mui-|chakra-|mantine-|rc_|rc-)/i.test(id)) return false;
+    if (/^[a-f0-9]{8,}$/i.test(id)) return false;
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) return false;
+    if (/\d{8,}/.test(id)) return false;
     return true;
   }
 
-  function isUniqueSelector(sel) {
+  function usefulAttrValue(el, name) {
+    const v = el.getAttribute(name);
+    if (v == null) return undefined;
+    const t = String(v).replace(/\s+/g, ' ').trim();
+    if (!t) return undefined;
+    if (t.length > 180) return undefined;
+    return t;
+  }
+
+  function stableClassTokens(el) {
+    const cls = typeof el.className === 'string' ? el.className : '';
+    if (!cls) return [];
+    return cls
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((c) => c.length <= 40)
+      .filter((c) => !/^[a-z0-9_-]*[0-9a-f]{6,}[a-z0-9_-]*$/i.test(c))
+      .filter((c) => !/^(active|selected|disabled|open|closed|focus|focused|hover|ng-|css-|sc-|jss|makeStyles|emotion-|__)/i.test(c))
+      .slice(0, 3);
+  }
+
+  function directSelectorCandidates(el) {
+    const tag = el.tagName.toLowerCase();
+    const out = [];
+
+    for (const a of ['data-testid', 'data-test-id', 'data-cy', 'data-test', 'data-qa', 'data-automation-id']) {
+      const v = usefulAttrValue(el, a);
+      if (!v) continue;
+      addCandidate(out, `${tag}${attr(a, v)}`, 100);
+      addCandidate(out, attr(a, v), 98);
+    }
+
+    const id = usefulAttrValue(el, 'id');
+    if (isStableId(id)) {
+      addCandidate(out, `${tag}#${cssIdent(id)}`, 96);
+      addCandidate(out, `#${cssIdent(id)}`, 94);
+    }
+
+    const singleAttrs = [
+      'aria-label',
+      'aria-labelledby',
+      'name',
+      'placeholder',
+      'title',
+      'alt',
+      'role',
+      'type',
+      'value',
+      'autocomplete',
+      'href',
+      'for',
+    ];
+
+    for (const a of singleAttrs) {
+      const v = usefulAttrValue(el, a);
+      if (!v) continue;
+      let sc = 70;
+      if (a === 'aria-label' || a === 'aria-labelledby') sc = 88;
+      else if (['name', 'placeholder', 'title', 'alt', 'value'].includes(a)) sc = 78;
+      else if (a === 'href') sc = 68;
+      addCandidate(out, `${tag}${attr(a, v)}`, sc);
+    }
+
+    const comboAttrs = [
+      'role',
+      'aria-label',
+      'aria-labelledby',
+      'name',
+      'placeholder',
+      'title',
+      'alt',
+      'type',
+      'value',
+      'autocomplete',
+      'href',
+    ].filter((a) => usefulAttrValue(el, a));
+
+    for (let i = 0; i < comboAttrs.length; i++) {
+      for (let j = i + 1; j < comboAttrs.length; j++) {
+        const a = comboAttrs[i];
+        const b = comboAttrs[j];
+        addCandidate(out, `${tag}${attr(a, usefulAttrValue(el, a))}${attr(b, usefulAttrValue(el, b))}`, 86);
+      }
+    }
+
+    if (comboAttrs.length >= 3) {
+      const sel = `${tag}${comboAttrs.slice(0, 5).map((a) => attr(a, usefulAttrValue(el, a))).join('')}`;
+      addCandidate(out, sel, 90);
+    }
+
+    const classes = stableClassTokens(el);
+    if (classes.length) {
+      addCandidate(out, `${tag}.${classes.map(cssIdent).join('.')}`, 55);
+      for (const c of classes) addCandidate(out, `${tag}.${cssIdent(c)}`, 45);
+    }
+
+    return out;
+  }
+
+  function anchorSelectorCandidates(el) {
+    const tag = el.tagName.toLowerCase();
+    const out = [];
+
+    for (const c of directSelectorCandidates(el)) {
+      if (selectorHitsExactly(c.sel, el)) addCandidate(out, c.sel, c.score);
+    }
+
+    const role = usefulAttrValue(el, 'role');
+    const aria = usefulAttrValue(el, 'aria-label');
+    const name = usefulAttrValue(el, 'name');
+
+    if (role) addCandidate(out, `${tag}${attr('role', role)}`, 70);
+    if (aria) addCandidate(out, `${tag}${attr('aria-label', aria)}`, 76);
+    if (role && aria) addCandidate(out, `${tag}${attr('role', role)}${attr('aria-label', aria)}`, 86);
+    if (tag === 'form') {
+      if (name) addCandidate(out, `form${attr('name', name)}`, 76);
+      if (role) addCandidate(out, `form${attr('role', role)}`, 82);
+      if (role && aria) addCandidate(out, `form${attr('role', role)}${attr('aria-label', aria)}`, 90);
+    }
+
+    return out.filter((c) => selectorHitsExactly(c.sel, el)).sort((a, b) => b.score - a.score);
+  }
+
+  function localSegmentCandidates(el) {
+    const tag = el.tagName.toLowerCase();
+    const out = [];
+
+    // Similar to direct candidates, but these only need to be unique among siblings.
+    // This lets parent paths stay stable without nth whenever possible.
+    for (const c of directSelectorCandidates(el)) {
+      const seg = c.sel.startsWith(tag) || c.sel.startsWith('#') || c.sel.startsWith('[') ? c.sel : `${tag}${c.sel}`;
+      addCandidate(out, seg, c.score);
+    }
+
+    addCandidate(out, tag, 1);
+    return out.sort((a, b) => b.score - a.score || a.sel.length - b.sel.length);
+  }
+
+  function childMatchesSegment(parent, child, seg) {
     try {
-      return document.querySelectorAll(sel).length === 1;
+      const hits = Array.from(parent.children).filter((x) => x.matches(seg));
+      return hits.length === 1 && hits[0] === child;
     } catch {
       return false;
     }
   }
 
-  function selectorFor(el) {
-    const tag = el.tagName.toLowerCase();
-
-    for (const attr of ['data-testid', 'data-cy', 'data-test', 'aria-label']) {
-      const v = el.getAttribute(attr);
-      if (v) {
-        const sel = `${tag}[${attr}="${CSS.escape(v)}"]`;
-        if (isUniqueSelector(sel)) return sel;
-      }
+  function segmentForChild(parent, child) {
+    for (const c of localSegmentCandidates(child)) {
+      if (childMatchesSegment(parent, child, c.sel)) return c.sel;
     }
 
-    const id = el.getAttribute('id');
-    if (isStableId(id)) {
-      const sel = `${tag}#${CSS.escape(id)}`;
-      if (isUniqueSelector(sel)) return sel;
-      const idSel = `#${CSS.escape(id)}`;
-      if (isUniqueSelector(idSel)) return idSel;
-    }
+    const tag = child.tagName.toLowerCase();
+    const same = Array.from(parent.children).filter((x) => x.tagName === child.tagName);
+    const idx = same.indexOf(child) + 1;
+    return same.length === 1 ? tag : `${tag}:nth-of-type(${idx})`;
+  }
 
-    const name = el.getAttribute('name');
-    if (name && ['input', 'textarea', 'select'].includes(tag)) {
-      const sel = `${tag}[name="${CSS.escape(name)}"]`;
-      if (isUniqueSelector(sel)) return sel;
-    }
-
-    if (tag === 'button') {
-      const type = el.getAttribute('type');
-      const form = el.closest('form');
-      if (type && form && isStableId(form.id)) {
-        const sel = `form#${CSS.escape(form.id)} button[type="${CSS.escape(type)}"]`;
-        if (isUniqueSelector(sel)) return sel;
-      }
-    }
-
-    const region = findRegion(el);
-    if (region) {
-      const rLabel = region.getAttribute('aria-label');
-      const rTag = region.tagName.toLowerCase();
-      if (rLabel) {
-        const siblings = Array.from(region.querySelectorAll(tag)).filter((x) => isVisible(x));
-        const idx = siblings.indexOf(el) + 1;
-        const scoped = `${rTag}[aria-label="${CSS.escape(rLabel)}"] ${tag}:nth-of-type(${idx || 1})`;
-        try {
-          if (document.querySelector(scoped) === el) return scoped;
-        } catch {}
-      }
-    }
-
+  function smartPathFromAnchor(el, anchorEl, anchorSel) {
     const parts = [];
     let cur = el;
-    while (cur && cur !== document.documentElement && parts.length < 5) {
-      const t = cur.tagName.toLowerCase();
-      const cid = cur.getAttribute('id');
-      if (isStableId(cid)) {
-        parts.unshift(`${t}#${CSS.escape(cid)}`);
-        break;
-      }
+    while (cur && cur !== anchorEl && cur !== document.documentElement) {
       const parent = cur.parentElement;
-      if (!parent) break;
-      const same = Array.from(parent.children).filter((c) => c.tagName === cur.tagName);
-      const nth = same.indexOf(cur) + 1;
-      parts.unshift(`${t}:nth-of-type(${nth})`);
+      if (!parent) return undefined;
+      parts.unshift(segmentForChild(parent, cur));
       cur = parent;
     }
+    if (cur !== anchorEl || !parts.length) return undefined;
+    return `${anchorSel} > ${parts.join(' > ')}`;
+  }
+
+  function absoluteSmartPath(el) {
+    const parts = [];
+    let cur = el;
+    while (cur && cur !== document.documentElement) {
+      const parent = cur.parentElement;
+      if (!parent) break;
+      parts.unshift(segmentForChild(parent, cur));
+      cur = parent;
+    }
+    parts.unshift('html');
     return parts.join(' > ');
+  }
+
+  function selectorBundleFor(el) {
+    const candidates = [];
+
+    // 1) Direct exact selectors from the element itself.
+    for (const c of directSelectorCandidates(el)) {
+      if (selectorHitsExactly(c.sel, el)) addCandidate(candidates, c.sel, c.score + 2000);
+    }
+
+    // 2) Stable ancestor + target stable selector, no nth.
+    const ancestors = [];
+    for (let a = el.parentElement, depth = 0; a && a !== document.body && a !== document.documentElement && depth < 10; a = a.parentElement, depth++) {
+      ancestors.push({ el: a, depth });
+    }
+
+    const rels = directSelectorCandidates(el).slice(0, 24);
+    for (const { el: anc, depth } of ancestors) {
+      const anchors = anchorSelectorCandidates(anc).slice(0, 6);
+      for (const an of anchors) {
+        for (const r of rels) {
+          const sel = `${an.sel} ${r.sel}`;
+          if (selectorHitsExactly(sel, el)) addCandidate(candidates, sel, 1500 + an.score + r.score - depth * 5);
+        }
+      }
+    }
+
+    // 3) Stable ancestor + smart child path. Each parent segment tries stable
+    // attrs/classes first, and uses nth only for the specific ambiguous level.
+    for (const { el: anc, depth } of ancestors) {
+      const anchors = anchorSelectorCandidates(anc).slice(0, 6);
+      for (const an of anchors) {
+        const sel = smartPathFromAnchor(el, anc, an.sel);
+        if (sel && selectorHitsExactly(sel, el)) addCandidate(candidates, sel, 900 + an.score - depth * 12);
+      }
+    }
+
+    // 4) Full DOM smart path. This is the guaranteed fallback. It still tries
+    // stable selectors at every parent level before nth-of-type.
+    const abs = absoluteSmartPath(el);
+    if (abs && selectorHitsExactly(abs, el)) addCandidate(candidates, abs, 1);
+
+    candidates.sort((a, b) => b.score - a.score || a.sel.length - b.sel.length);
+    const primary = candidates[0]?.sel || abs;
+
+    const cssFallbacks = [];
+    for (const c of candidates) {
+      if (c.sel === primary) continue;
+      cssFallbacks.push(c.sel);
+      if (cssFallbacks.length >= 2) break;
+    }
+
+    return { primary, cssFallbacks };
+  }
+
+  function selectorFor(el) {
+    return selectorBundleFor(el).primary;
+  }
+
+  function roleForFallback(el, kind) {
+    const role = getRoleForFallback(el, kind);
+    const name = elementLabel(el);
+    if (!role || !name) return undefined;
+    return ['role', role, name];
+  }
+
+  function getRoleForFallback(el, kind) {
+    const explicit = cleanText(el.getAttribute('role'), 40);
+    if (explicit) return explicit;
+    if (kind === 'button') return 'button';
+    if (kind === 'link') return 'link';
+    if (kind === 'textbox' || kind === 'input') return 'textbox';
+    if (kind === 'checkbox') return 'checkbox';
+    if (kind === 'radio') return 'radio';
+    if (kind === 'select') return 'combobox';
+    if (kind === 'tab') return 'tab';
+    if (kind === 'option') return 'option';
+    if (kind === 'menuitem') return 'menuitem';
+    return undefined;
+  }
+
+  function formSubmitFallback(el) {
+    const tag = el.tagName.toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const isSubmitLike =
+      (tag === 'button' && (!type || type === 'submit')) ||
+      (tag === 'input' && ['submit', 'image'].includes(type));
+    if (!isSubmitLike) return undefined;
+    const form = el.closest('form');
+    if (!form) return undefined;
+    const fs = selectorFor(form);
+    return fs ? ['submit', fs] : undefined;
+  }
+
+  function fallbackFor(el, kind, primarySelector, sub) {
+    const fb = [];
+    if (sub) fb.push(['key', sub]);
+
+    const submit = formSubmitFallback(el);
+    if (submit) fb.push(submit);
+    if (fb.length >= 3) return fb;
+
+    const bundle = selectorBundleFor(el);
+    for (const s of bundle.cssFallbacks) {
+      if (s && s !== primarySelector) fb.push(['css', s]);
+      if (fb.length >= 3) return fb;
+    }
+
+    const role = roleForFallback(el, kind);
+    if (role) fb.push(role);
+    if (fb.length >= 3) return fb;
+
+    if (primarySelector && !isTextEditable(el)) fb.push(['domclick']);
+    return fb.slice(0, 3);
+  }
+
+  function isProbablyOccluded(el) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return true;
+    const pts = [
+      [rect.left + rect.width / 2, rect.top + rect.height / 2],
+      [rect.left + Math.min(rect.width - 1, 6), rect.top + Math.min(rect.height - 1, 6)],
+      [rect.right - Math.min(rect.width - 1, 6), rect.bottom - Math.min(rect.height - 1, 6)],
+    ];
+    let visibleHit = false;
+    for (const [x, y] of pts) {
+      if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) continue;
+      const top = document.elementFromPoint(x, y);
+      if (top && (top === el || el.contains(top))) visibleHit = true;
+    }
+    return !visibleHit;
+  }
+
+  function submitHintFor(el, kind) {
+    if (!isTextEditable(el)) return undefined;
+    const form = el.closest('form');
+    const role = form?.getAttribute('role') || '';
+    const label = `${elementLabel(el) || ''} ${role} ${form?.getAttribute('aria-label') || ''}`.toLowerCase();
+    if (/search|tìm kiếm|tim kiem/.test(label)) return 'Enter';
+    if (document.activeElement === el && 'value' in el && el.value && form) return 'Enter';
+    return undefined;
   }
 
   const regionMap = new Map();
@@ -529,6 +826,7 @@ export function makeSemanticUiTree(options = {}) {
     if (item.region) s += 15;
     if (item.group && (item.group.label || item.group.text)) s += 15;
     if (item.state && item.state.includes('disabled')) s -= 80;
+    if (item.state && item.state.includes('occluded')) s -= 120;
 
     const txt = `${item.label || ''} ${item.group?.label || ''}`.toLowerCase();
     if (/terms|privacy|cookie|learn more/.test(txt)) s -= 40;
@@ -551,14 +849,22 @@ export function makeSemanticUiTree(options = {}) {
     const kind = inferKind(el);
     const label = elementLabel(el);
     const selector = selectorFor(el);
+
+    // Every emitted action gets a selector. selectorFor() has a guaranteed
+    // full-DOM smart-path fallback, so absence here would mean a non-standard
+    // DOM edge case that querySelectorAll cannot represent.
     if (!selector) continue;
+    const occluded = !isTextEditable(el) && isProbablyOccluded(el);
 
     const region = regionIdFor(el);
     const group = summarizeGroup(findGroup(el), el);
-    const state = elementState(el, kind);
+    let state = elementState(el, kind);
+    if (occluded) state = [...(state || []), 'occluded'];
     const value = usefulValue(el, kind);
+    const sub = submitHintFor(el, kind);
+    const fb = fallbackFor(el, kind, selector, sub);
 
-    const key = `${kind}|${selector}|${label || ''}`;
+    const key = `${kind}|${selector || ''}|${label || ''}|${region || ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -566,6 +872,8 @@ export function makeSemanticUiTree(options = {}) {
     if (label) item.label = label;
     if (value) item.value = value;
     item.selector = selector;
+    if (sub) item.sub = sub;
+    if (fb.length) item.fb = fb;
     if (region) item.region = region;
     if (group) item.group = group;
     if (state) item.state = state;
@@ -623,8 +931,29 @@ export function makeSemanticUiTree(options = {}) {
   }
 
   if (byteLen(result) > cfg.maxBytes) {
-    result.actions = result.actions.slice(0, Math.max(10, Math.floor(cfg.maxActions / 2)));
+    for (const a of result.actions) {
+      if (a.group && !a.group.label) delete a.group;
+    }
+  }
+
+  if (byteLen(result) > cfg.maxBytes) {
+    for (const a of result.actions) {
+      if (a.group) delete a.group;
+    }
+  }
+
+  // Hard byte budget: trim low-score tail until the serialized tree fits.
+  // Selectors are never shortened or weakened to fit the budget.
+  while (byteLen(result) > cfg.maxBytes && result.actions.length > 8) {
+    result.actions.pop();
     result.stats.emittedActions = result.actions.length;
+    const used = new Set(result.actions.map((a) => a.region).filter(Boolean));
+    result.regions = result.regions.filter((r) => used.has(r.id));
+    result.stats.emittedRegions = result.regions.length;
+  }
+
+  if (byteLen(result) > cfg.maxBytes) {
+    delete result.page.title;
   }
 
   return result;
