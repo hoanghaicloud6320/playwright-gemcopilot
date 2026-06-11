@@ -77,6 +77,7 @@ export class Brain implements IBrain {
                  - các phản hồi khi đang trong vòng lặp vẫn có thể phản hồi text nhưng cần kèm function calling để giữ cho vòng lặp sống!
                  - các selector cho các tool **nên** sử dụng các selector gắn sẵn trong SemanticUItree (runtime đã tính sẵn selector để unique nhất có thể)
                  - lịch sử các hành động cung cấp cho bạn 1 góc nhìn về quá trình thực hiện nhiệm vụ 1 cách liền mạch (bạn đóng vai như 1 statemachine)
+                 - nếu trong lịch sử hành động phát hiện fail loop liên tục/vấn đề khó automate, hãy cầu cứu human để tránh đốt token vô ích!
 
                 Nhiệm vụ: \`${prompt}\`.
                 Lịch sử các hành động gần nhất của bạn (tối đa 20):

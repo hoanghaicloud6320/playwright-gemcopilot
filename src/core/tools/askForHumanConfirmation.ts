@@ -3,7 +3,7 @@ import * as readline from 'readline';
 
 export const askForHumanConfirmationTool: ToolDefinition = {
     name: 'askForHumanConfirmation',
-    description: 'Yêu cầu sự can thiệp của con người khi gặp khó khăn như CAPTCHA, xác thực 2 bước, hoặc các trang web phức tạp không thể tự động hóa.',
+    description: 'Yêu cầu sự can thiệp của con người khi gặp khó khăn như CAPTCHA, xác thực 2 bước, hoặc các trang web phức tạp không thể tự động hóa. Hãy cân nhắc sử dụng tool này trước khi quyết định ngắt lặp (trừ khi công việc đã hoàn thành thành công chóng vánh).',
     parameters: {
         type: 'object',
         properties: {
@@ -35,3 +35,4 @@ export async function performAskForHumanConfirmation(action: BrowserAction): Pro
         });
     });
 }
+
